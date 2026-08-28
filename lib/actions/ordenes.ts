@@ -96,7 +96,11 @@ export async function updateEstadoOrden(
   estado: "recibido" | "en_proceso" | "terminado" | "entregado",
 ): Promise<ActionResult> {
   const supabase = await db();
-  const updateData: Record<string, unknown> = { estado };
+  const updateData: {
+    estado: "recibido" | "en_proceso" | "terminado" | "entregado";
+    fecha_entrega_real?: string | null;
+  } = { estado };
+
   if (estado === "entregado") {
     updateData.fecha_entrega_real = new Date().toISOString();
   }
