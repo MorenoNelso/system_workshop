@@ -61,9 +61,9 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 | Fase | Descripción | Estado |
 |---|---|---|
 | 0 | Setup Next.js, Supabase, estructura de carpetas | ✅ Completa |
-| 1 | Auth + roles (login, OTP, 2FA, middleware) | ⬜ Pendiente |
-| 2 | CRUD: Clientes, Motos, Repuestos, Proveedores | ⬜ Pendiente |
-| 3 | Órdenes de servicio, Mano de obra, Empleados | ⬜ Pendiente |
+| 1 | Auth + roles (login, OTP, 2FA, middleware) | ✅ Completa |
+| 2 | CRUD: Clientes, Motos, Repuestos, Proveedores | ✅ Completa |
+| 3 | Órdenes de servicio, Mano de obra, Empleados | ✅ Completa |
 | 4 | Facturación, Pagos, Multi-moneda | ⬜ Pendiente |
 | 5 | Dashboard y Reportes | ⬜ Pendiente |
 | 6 | Hardening de seguridad (auditoría completa) | ⬜ Pendiente |

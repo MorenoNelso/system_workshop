@@ -1,17 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  async redirects() {
-    return [
-      {
-        source: "/",
-        destination: "/login",
-        basePath: false, // Esto es CRÍTICO para que funcione sin /dashboard
-        permanent: false,
-      },
-    ];
-  },
+  // Los redirects de auth los gestiona `proxy.ts` (rutas protegidas → /login,
+  // sesión activa en /login → /). No definir aquí redirects estáticos que
+  // colisionen con la lógica del proxy.
 };
 
 export default nextConfig;
