@@ -284,6 +284,18 @@ create policy "pagos_write" on public.pagos for all to authenticated using (get_
 create policy "logs_admin_select" on public.logs_auditoria for select to authenticated using (get_user_role() = 'administrador');
 
 -- ============================================================
+-- PERMISOS (GRANTS PARA POSTGREST)
+-- ============================================================
+grant usage on schema public to anon, authenticated, service_role;
+grant all on all tables in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on all routines in schema public to anon, authenticated, service_role;
+
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant all on routines to anon, authenticated, service_role;
+
+-- ============================================================
 -- DATOS INICIALES
 -- ============================================================
 insert into public.monedas (codigo, nombre, simbolo) values
