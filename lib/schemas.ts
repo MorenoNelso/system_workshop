@@ -196,6 +196,35 @@ export const movimientoInventarioSchema = z.object({
   orden_id: optionalId,
 });
 
+export const tasaCambioSchema = z
+  .object({
+    moneda_origen_id: id,
+    moneda_destino_id: id,
+    tasa: z.coerce
+      .number({ message: "La tasa debe ser un número." })
+      .positive("La tasa debe ser mayor a 0."),
+  })
+  .refine((d) => d.moneda_origen_id !== d.moneda_destino_id, {
+    message: "La moneda de origen y destino deben ser distintas.",
+    path: ["moneda_destino_id"],
+  });
+
+export const facturaCreateSchema = z.object({
+  orden_id: id,
+  moneda_id: id,
+});
+
+export const pagoSchema = z.object({
+  factura_id: id,
+  monto: z.coerce
+    .number({ message: "El monto es obligatorio." })
+    .positive("El monto debe ser mayor a 0."),
+  moneda_id: id,
+  metodo_pago: z.enum(["efectivo", "transferencia", "tarjeta"], {
+    message: "El método de pago no es válido.",
+  }),
+});
+
 export type ClienteInput = z.infer<typeof clienteSchema>;
 export type MotoInput = z.infer<typeof motoSchema>;
 export type CategoriaInput = z.infer<typeof categoriaSchema>;
@@ -206,4 +235,7 @@ export type OrdenServicioInput = z.infer<typeof ordenServicioSchema>;
 export type OrdenDetalleRepuestoInput = z.infer<typeof ordenDetalleRepuestoSchema>;
 export type OrdenDetalleManoObraInput = z.infer<typeof ordenDetalleManoObraSchema>;
 export type MovimientoInventarioInput = z.infer<typeof movimientoInventarioSchema>;
+export type TasaCambioInput = z.infer<typeof tasaCambioSchema>;
+export type FacturaCreateInput = z.infer<typeof facturaCreateSchema>;
+export type PagoInput = z.infer<typeof pagoSchema>;
 

@@ -11,7 +11,17 @@ import {
 
 const PATH = "/inventario";
 
-export async function listMovimientos(limit = 100) {
+export interface MovimientoRow {
+  id: string;
+  tipo: "entrada" | "salida" | "ajuste";
+  cantidad: number;
+  motivo: string | null;
+  fecha: string;
+  repuesto: { nombre: string; sku: string | null } | null;
+  usuario: { nombre: string; email: string } | null;
+}
+
+export async function listMovimientos(limit = 100): Promise<MovimientoRow[]> {
   const supabase = await db();
   const { data, error } = await supabase
     .from("movimientos_inventario")
@@ -21,7 +31,7 @@ export async function listMovimientos(limit = 100) {
     .order("fecha", { ascending: false })
     .limit(limit);
   if (error) return [];
-  return data;
+  return (data ?? []) as unknown as MovimientoRow[];
 }
 
 export async function registrarMovimiento(raw: unknown): Promise<ActionResult> {

@@ -5,11 +5,42 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createOrden, deleteOrden } from "@/lib/actions/ordenes";
 
+interface ClienteLite {
+  id: string;
+  nombre: string;
+  telefono: string | null;
+}
+
+interface MotoLite {
+  id: string;
+  cliente_id: string;
+  marca: string;
+  modelo: string;
+  placa: string | null;
+}
+
+interface EmpleadoLite {
+  id: string;
+  nombre: string;
+  porcentaje_comision: number | null;
+}
+
+interface OrdenRow {
+  id: string;
+  estado: string;
+  fecha_ingreso: string;
+  diagnostico: string | null;
+  observaciones: string | null;
+  cliente: { nombre: string; telefono: string | null } | null;
+  moto: { marca: string; modelo: string; placa: string | null } | null;
+  empleado_asignado: { nombre: string } | null;
+}
+
 interface Props {
-  initialOrdenes: any[];
-  clientes: any[];
-  motos: any[];
-  empleados: any[];
+  initialOrdenes: OrdenRow[];
+  clientes: ClienteLite[];
+  motos: MotoLite[];
+  empleados: EmpleadoLite[];
 }
 
 const ESTADOS = [
@@ -71,8 +102,9 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
 
     setModalOpen(false);
     router.refresh();
-    if (res.data && (res.data as any).id) {
-      router.push(`/ordenes/${(res.data as any).id}`);
+    const data = res.data as { id?: string } | undefined;
+    if (data?.id) {
+      router.push(`/ordenes/${data.id}`);
     }
   }
 

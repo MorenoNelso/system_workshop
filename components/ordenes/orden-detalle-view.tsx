@@ -11,11 +11,74 @@ import {
   updateEstadoOrden,
 } from "@/lib/actions/ordenes";
 
+type EstadoOrden = "recibido" | "en_proceso" | "terminado" | "entregado";
+
+interface MonedaLite {
+  id: string;
+  codigo: string;
+  simbolo: string;
+}
+
+interface EmpleadoLite {
+  id: string;
+  nombre: string;
+  porcentaje_comision: number | null;
+}
+
+interface RepuestoDisponible {
+  id: string;
+  nombre: string;
+  stock_actual: number;
+  precio_venta: number;
+  activo: boolean;
+}
+
+interface RepuestoDetalleOrden {
+  id: string;
+  cantidad: number;
+  precio_unitario_aplicado: number;
+  repuesto: { nombre: string; sku: string | null } | null;
+  moneda: { simbolo: string } | null;
+}
+
+interface ManoObraDetalleOrden {
+  id: string;
+  descripcion: string;
+  monto: number;
+  porcentaje_comision_aplicado: number | null;
+  comision_calculada: number | null;
+  empleado: { nombre: string } | null;
+  moneda: { simbolo: string } | null;
+}
+
+interface OrdenDetalle {
+  id: string;
+  estado: EstadoOrden;
+  fecha_ingreso: string;
+  diagnostico: string | null;
+  observaciones: string | null;
+  empleado_asignado_id: string | null;
+  cliente: {
+    nombre: string;
+    telefono: string | null;
+    documento?: string | null;
+  } | null;
+  moto: {
+    marca: string;
+    modelo: string;
+    placa: string | null;
+    cilindraje: string | null;
+    color: string | null;
+  } | null;
+  repuestos: RepuestoDetalleOrden[];
+  mano_obra: ManoObraDetalleOrden[];
+}
+
 interface Props {
-  orden: any;
-  repuestosDisponibles: any[];
-  mecanicos: any[];
-  monedas: any[];
+  orden: OrdenDetalle;
+  repuestosDisponibles: RepuestoDisponible[];
+  mecanicos: EmpleadoLite[];
+  monedas: MonedaLite[];
 }
 
 export function OrdenDetalleView({
@@ -94,7 +157,7 @@ export function OrdenDetalleView({
   }
 
   // Eliminar Repuesto (restaura stock)
-  async function handleEliminarRepuesto(detalleId: string, nombreRep: string) {
+  async function handleEliminarRepuesto(detalleId: string, nombreRep: string | undefined) {
     if (!confirm(`¿Eliminar '${nombreRep}' de la orden? El stock será devuelto automáticamente al inventario.`)) {
       return;
     }
@@ -146,17 +209,19 @@ export function OrdenDetalleView({
 
   // Cálculos de totales
   const totalRepuestos = (orden.repuestos || []).reduce(
-    (acc: number, item: any) => acc + item.cantidad * Number(item.precio_unitario_aplicado),
+    (acc: number, item: RepuestoDetalleOrden) =>
+      acc + item.cantidad * Number(item.precio_unitario_aplicado),
     0
   );
 
   const totalManoObra = (orden.mano_obra || []).reduce(
-    (acc: number, item: any) => acc + Number(item.monto),
+    (acc: number, item: ManoObraDetalleOrden) => acc + Number(item.monto),
     0
   );
 
   const totalComisiones = (orden.mano_obra || []).reduce(
-    (acc: number, item: any) => acc + Number(item.comision_calculada || 0),
+    (acc: number, item: ManoObraDetalleOrden) =>
+      acc + Number(item.comision_calculada || 0),
     0
   );
 
@@ -192,7 +257,7 @@ export function OrdenDetalleView({
           <select
             value={estado}
             disabled={cambiandoEstado}
-            onChange={(e) => handleCambioEstado(e.target.value as any)}
+            onChange={(e) => handleCambioEstado(e.target.value as EstadoOrden)}
             className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-800 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           >
             <option value="recibido">🟡 Recibido</option>
@@ -288,7 +353,7 @@ export function OrdenDetalleView({
                   </td>
                 </tr>
               ) : (
-                orden.repuestos.map((item: any) => (
+                orden.repuestos.map((item: RepuestoDetalleOrden) => (
                   <tr key={item.id} className="transition hover:bg-zinc-50">
                     <td className="px-4 py-2.5 font-medium text-zinc-800">
                       {item.repuesto?.nombre}
@@ -377,7 +442,7 @@ export function OrdenDetalleView({
                   </td>
                 </tr>
               ) : (
-                orden.mano_obra.map((item: any) => (
+                orden.mano_obra.map((item: ManoObraDetalleOrden) => (
                   <tr key={item.id} className="transition hover:bg-zinc-50">
                     <td className="px-4 py-2.5 font-medium text-zinc-900">
                       {item.empleado?.nombre}

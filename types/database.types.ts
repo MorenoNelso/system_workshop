@@ -344,6 +344,93 @@ export interface Database {
         }>;
         Relationships: [];
       };
+      tasas_cambio: {
+        Row: Row<{
+          moneda_origen_id: string;
+          moneda_destino_id: string;
+          tasa: number;
+          fuente: string;
+          actualizado_por: string | null;
+          fecha: string;
+        }>;
+        Insert: Insert<{
+          moneda_origen_id: string;
+          moneda_destino_id: string;
+          tasa: number;
+          fuente?: string;
+          actualizado_por?: string | null;
+          fecha?: string;
+        }>;
+        Update: Update<{
+          moneda_origen_id?: string;
+          moneda_destino_id?: string;
+          tasa?: number;
+          fuente?: string;
+          actualizado_por?: string | null;
+          fecha?: string;
+        }>;
+        Relationships: [];
+      };
+      facturas: {
+        Row: Row<{
+          orden_id: string;
+          cliente_id: string;
+          numero_consecutivo: number;
+          subtotal: number;
+          total: number;
+          moneda_id: string;
+          tasa_aplicada: number | null;
+          estado_pago: "pendiente" | "pagada" | "anulada";
+          fecha_emision: string;
+        }>;
+        Insert: Insert<{
+          orden_id: string;
+          cliente_id: string;
+          numero_consecutivo?: number;
+          subtotal: number;
+          total: number;
+          moneda_id: string;
+          tasa_aplicada?: number | null;
+          estado_pago?: "pendiente" | "pagada" | "anulada";
+          fecha_emision?: string;
+        }>;
+        Update: Update<{
+          orden_id?: string;
+          cliente_id?: string;
+          numero_consecutivo?: number;
+          subtotal?: number;
+          total?: number;
+          moneda_id?: string;
+          tasa_aplicada?: number | null;
+          estado_pago?: "pendiente" | "pagada" | "anulada";
+          fecha_emision?: string;
+        }>;
+        Relationships: [];
+      };
+      pagos: {
+        Row: Row<{
+          factura_id: string;
+          monto: number;
+          moneda_id: string;
+          metodo_pago: string | null;
+          fecha: string;
+        }>;
+        Insert: Insert<{
+          factura_id: string;
+          monto: number;
+          moneda_id: string;
+          metodo_pago?: string | null;
+          fecha?: string;
+        }>;
+        Update: Update<{
+          factura_id?: string;
+          monto?: number;
+          moneda_id?: string;
+          metodo_pago?: string | null;
+          fecha?: string;
+        }>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

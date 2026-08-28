@@ -1,0 +1,560 @@
+"use client";
+
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+
+import { anularFactura, registrarPago } from "@/lib/actions/facturas";
+import type {
+  FacturaDetail,
+  ManoObraDetalle,
+  MonedaRef,
+  PagoRow,
+  RepuestoDetalle,
+} from "@/lib/actions/facturas";
+import { fmtMonto } from "@/lib/currency";
+
+interface Props {
+  factura: FacturaDetail;
+  monedas: MonedaRef[];
+  equivalencias: { moneda: MonedaRef; total: number | null }[];
+  esAdmin: boolean;
+}
+
+function EstadoBadge({ estado }: { estado: string }) {
+  switch (estado) {
+    case "pendiente":
+      return (
+        <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
+          Pendiente
+        </span>
+      );
+    case "pagada":
+      return (
+        <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
+          Pagada
+        </span>
+      );
+    case "anulada":
+      return (
+        <span className="inline-flex items-center rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-medium text-red-700">
+          Anulada
+        </span>
+      );
+    default:
+      return (
+        <span className="inline-flex items-center rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-0.5 text-xs font-medium text-zinc-700">
+          {estado}
+        </span>
+      );
+  }
+}
+
+export function FacturaDetalleView({
+  factura,
+  monedas,
+  equivalencias,
+  esAdmin,
+}: Props) {
+  const router = useRouter();
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const [modalPago, setModalPago] = useState(false);
+  const [metodoPago, setMetodoPago] = useState("efectivo");
+  const [monedaPagoId, setMonedaPagoId] = useState(factura.moneda_id);
+  const [montoPago, setMontoPago] = useState<string>(
+    Number(factura.total).toFixed(2),
+  );
+
+  const equivalenciaPorMoneda: Record<string, number | null> = {
+    [factura.moneda_id]: Number(factura.total),
+  };
+  for (const e of equivalencias) {
+    equivalenciaPorMoneda[e.moneda.id] = e.total;
+  }
+
+  const monedaPago = monedas.find((m) => m.id === monedaPagoId);
+
+  function cambiarMonedaPago(id: string) {
+    setMonedaPagoId(id);
+    const eq = equivalenciaPorMoneda[id];
+    setMontoPago(eq === null || eq === undefined ? "" : eq.toFixed(2));
+  }
+
+  async function handlePagar(e: React.FormEvent) {
+    e.preventDefault();
+    setGuardando(true);
+    setError(null);
+
+    const res = await registrarPago({
+      factura_id: factura.id,
+      monto: Number(montoPago),
+      moneda_id: monedaPagoId,
+      metodo_pago: metodoPago,
+    });
+    setGuardando(false);
+
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+
+    setModalPago(false);
+    router.refresh();
+  }
+
+  async function handleAnular() {
+    if (!confirm("¿Anular esta factura? No podrá cobrarse después.")) return;
+    setError(null);
+    const res = await anularFactura(factura.id);
+    if (!res.ok) {
+      setError(res.error);
+      return;
+    }
+    router.refresh();
+  }
+
+  const totalRepuestos = (factura.repuestos ?? []).reduce(
+    (acc: number, item: RepuestoDetalle) =>
+      acc + item.cantidad * Number(item.precio_unitario_aplicado),
+    0,
+  );
+  const totalManoObra = (factura.mano_obra ?? []).reduce(
+    (acc: number, item: ManoObraDetalle) => acc + Number(item.monto),
+    0,
+  );
+  const monedaSimbolo = factura.moneda?.simbolo || "$";
+
+  return (
+    <div className="flex flex-col gap-6">
+      {/* Cabecera */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-3">
+          <Link
+            href="/facturas"
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-200 bg-white text-zinc-600 transition hover:bg-zinc-100"
+          >
+            ←
+          </Link>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+                Factura #{String(factura.numero_consecutivo).padStart(6, "0")}
+              </h1>
+              <EstadoBadge estado={factura.estado_pago} />
+            </div>
+            <p className="text-sm text-zinc-500">
+              Emitida el{" "}
+              {new Date(factura.fecha_emision).toLocaleDateString("es-ES", {
+                day: "2-digit",
+                month: "long",
+                year: "numeric",
+              })}
+              {" · "}
+              {factura.moneda?.codigo}
+            </p>
+          </div>
+        </div>
+
+        {/* Acciones por estado */}
+        {esAdmin && factura.estado_pago === "pendiente" && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAnular}
+              disabled={guardando}
+              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:opacity-60"
+            >
+              Anular
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setError(null);
+                setModalPago(true);
+              }}
+              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98]"
+            >
+              Registrar Pago
+            </button>
+          </div>
+        )}
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {/* Información */}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h3 className="border-b border-zinc-100 pb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            Cliente
+          </h3>
+          <div className="mt-3 space-y-1 text-sm">
+            <p className="font-medium text-zinc-900">{factura.cliente?.nombre}</p>
+            <p className="text-zinc-500">📞 {factura.cliente?.telefono}</p>
+            {factura.cliente?.email && (
+              <p className="text-xs text-zinc-400">{factura.cliente.email}</p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h3 className="border-b border-zinc-100 pb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            Orden de servicio
+          </h3>
+          <div className="mt-3 space-y-1 text-sm">
+            <p className="font-medium text-zinc-900">
+              {factura.orden?.moto?.marca} {factura.orden?.moto?.modelo}
+            </p>
+            <p className="text-zinc-500">
+              Placa:{" "}
+              <span className="font-mono font-medium">
+                {factura.orden?.moto?.placa || "N/A"}
+              </span>
+            </p>
+            <Link
+              href={`/ordenes/${factura.orden_id}`}
+              className="inline-block rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+            >
+              Ver orden →
+            </Link>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h3 className="border-b border-zinc-100 pb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
+            Tasa aplicada (snapshot)
+          </h3>
+          <div className="mt-3 text-sm">
+            {factura.tasa_aplicada !== null &&
+            factura.tasa_aplicada !== undefined ? (
+              <p className="font-mono font-medium text-zinc-900">
+                1 unidad = {factura.tasa_aplicada} {factura.moneda?.codigo}
+              </p>
+            ) : (
+              <p className="text-zinc-500 italic">
+                Sin conversión (montos ya estaban en {factura.moneda?.codigo}).
+              </p>
+            )}
+            <p className="mt-1 text-xs text-zinc-400">
+              El total quedó congelado al emitir la factura y no se recalcula.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Repuestos */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold tracking-tight text-zinc-900">
+          Repuestos facturados
+        </h2>
+        <div className="overflow-x-auto rounded-xl border border-zinc-100">
+          <table className="min-w-full divide-y divide-zinc-200 text-sm">
+            <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
+              <tr>
+                <th className="px-4 py-2.5 font-medium">Repuesto</th>
+                <th className="px-4 py-2.5 font-medium text-center">Cant.</th>
+                <th className="px-4 py-2.5 font-medium text-right">Precio snapshot</th>
+                <th className="px-4 py-2.5 font-medium text-right">Subtotal</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {(factura.repuestos ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="px-4 py-6 text-center text-xs text-zinc-400">
+                    Sin repuestos.
+                  </td>
+                </tr>
+              ) : (
+                factura.repuestos.map((item: RepuestoDetalle) => (
+                  <tr key={item.id} className="transition hover:bg-zinc-50">
+                    <td className="px-4 py-2.5 font-medium text-zinc-800">
+                      {item.repuesto?.nombre}
+                    </td>
+                    <td className="px-4 py-2.5 text-center text-zinc-700">
+                      {item.cantidad}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-zinc-600">
+                      {item.moneda?.simbolo || "$"}{" "}
+                      {Number(item.precio_unitario_aplicado).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-zinc-900">
+                      {item.moneda?.simbolo || "$"}{" "}
+                      {(item.cantidad * Number(item.precio_unitario_aplicado)).toFixed(2)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {totalRepuestos > 0 && (
+              <tfoot className="bg-zinc-50 font-medium">
+                <tr>
+                  <td colSpan={3} className="px-4 py-2.5 text-right text-zinc-600">
+                    Total repuestos:
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-bold text-zinc-900">
+                    {monedaSimbolo} {totalRepuestos.toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Mano de obra */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold tracking-tight text-zinc-900">
+          Mano de obra facturada
+        </h2>
+        <div className="overflow-x-auto rounded-xl border border-zinc-100">
+          <table className="min-w-full divide-y divide-zinc-200 text-sm">
+            <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
+              <tr>
+                <th className="px-4 py-2.5 font-medium">Mecánico</th>
+                <th className="px-4 py-2.5 font-medium">Descripción</th>
+                <th className="px-4 py-2.5 font-medium text-right">Monto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100">
+              {(factura.mano_obra ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={3} className="px-4 py-6 text-center text-xs text-zinc-400">
+                    Sin mano de obra.
+                  </td>
+                </tr>
+              ) : (
+                factura.mano_obra.map((item: ManoObraDetalle) => (
+                  <tr key={item.id} className="transition hover:bg-zinc-50">
+                    <td className="px-4 py-2.5 font-medium text-zinc-900">
+                      {item.empleado?.nombre}
+                    </td>
+                    <td className="px-4 py-2.5 text-zinc-700">{item.descripcion}</td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-zinc-900">
+                      {item.moneda?.simbolo || "$"} {Number(item.monto).toFixed(2)}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            {totalManoObra > 0 && (
+              <tfoot className="bg-zinc-50 font-medium">
+                <tr>
+                  <td colSpan={2} className="px-4 py-2.5 text-right text-zinc-600">
+                    Total mano de obra:
+                  </td>
+                  <td className="px-4 py-2.5 text-right font-bold text-zinc-900">
+                    {monedaSimbolo} {totalManoObra.toFixed(2)}
+                  </td>
+                </tr>
+              </tfoot>
+            )}
+          </table>
+        </div>
+      </div>
+
+      {/* Resumen + equivalencias */}
+      <div className="rounded-2xl border border-zinc-200 bg-zinc-900 p-6 text-white shadow-sm">
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-wrap items-center gap-6 text-right">
+            <div>
+              <p className="text-xs uppercase tracking-wider text-zinc-400">
+                Subtotal
+              </p>
+              <p className="text-sm font-semibold">
+                {monedaSimbolo} {Number(factura.subtotal).toFixed(2)}
+              </p>
+            </div>
+            <div className="border-l border-zinc-700 pl-6">
+              <p className="text-xs uppercase tracking-wider text-pink-400 font-semibold">
+                Total ({factura.moneda?.codigo})
+              </p>
+              <p className="text-2xl font-black">
+                {monedaSimbolo} {Number(factura.total).toFixed(2)}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-zinc-700 bg-zinc-800/50 p-4 lg:min-w-64">
+            <p className="text-xs uppercase tracking-wider text-zinc-400">
+              Equivalente aprox. (tasa vigente)
+            </p>
+            <div className="mt-2 space-y-1.5 text-sm">
+              {equivalencias.length === 0 ? (
+                <p className="text-xs text-zinc-500 italic">Solo hay una moneda.</p>
+              ) : (
+                equivalencias.map((e) => (
+                  <div key={e.moneda.id} className="flex items-center justify-between gap-4">
+                    <span className="text-zinc-300">{e.moneda.codigo}</span>
+                    <span className="font-semibold text-white">
+                      {e.moneda.simbolo} {fmtMonto(e.total)}
+                      {e.total === null && (
+                        <span className="ml-1 text-[10px] font-normal text-amber-400">
+                          (sin tasa)
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="mt-2 text-[10px] text-zinc-500">
+              Solo visual. No altera los montos congelados de la factura.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Pagos */}
+      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <h2 className="text-base font-semibold tracking-tight text-zinc-900">
+          Pagos
+        </h2>
+        {factura.pagos?.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            {factura.estado_pago === "pendiente"
+              ? "Sin pagos registrados."
+              : factura.estado_pago === "anulada"
+                ? "Factura anulada, sin pagos."
+                : "—"}
+          </p>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-zinc-100">
+            <table className="min-w-full divide-y divide-zinc-200 text-sm">
+              <thead className="bg-zinc-50 text-left text-xs uppercase tracking-wide text-zinc-500">
+                <tr>
+                  <th className="px-4 py-2.5 font-medium">Fecha</th>
+                  <th className="px-4 py-2.5 font-medium text-right">Monto</th>
+                  <th className="px-4 py-2.5 font-medium">Método</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100">
+                {(factura.pagos ?? []).map((p: PagoRow) => (
+                  <tr key={p.id}>
+                    <td className="px-4 py-2.5 text-xs text-zinc-500">
+                      {new Date(p.fecha).toLocaleString("es-ES", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </td>
+                    <td className="px-4 py-2.5 text-right font-semibold text-emerald-700">
+                      {monedas.find((m) => m.id === p.moneda_id)?.simbolo || "$"}{" "}
+                      {Number(p.monto).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-2.5 capitalize text-zinc-700">
+                      {p.metodo_pago}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Modal: Registrar Pago */}
+      {modalPago && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4">
+          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
+            <div className="h-1 w-full bg-pink-400" />
+            <div className="px-6 pt-5 pb-3">
+              <h3 className="text-base font-semibold text-zinc-900">
+                Registrar pago completo
+              </h3>
+              <p className="text-xs text-zinc-500">
+                Sin abonos: el pago debe cubrir el total congelado de la factura.
+              </p>
+            </div>
+
+            <form onSubmit={handlePagar} className="space-y-4 px-6 py-4">
+              <div>
+                <label className="text-xs font-medium text-zinc-700">
+                  Método de pago <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={metodoPago}
+                  onChange={(e) => setMetodoPago(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="tarjeta">Tarjeta</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-zinc-700">
+                  Moneda del pago <span className="text-red-500">*</span>
+                </label>
+                <select
+                  required
+                  value={monedaPagoId}
+                  onChange={(e) => cambiarMonedaPago(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                >
+                  {monedas.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.codigo} ({m.simbolo}) —{" "}
+                      {equivalenciaPorMoneda[m.id] === null ||
+                      equivalenciaPorMoneda[m.id] === undefined
+                        ? "sin tasa"
+                        : equivalenciaPorMoneda[m.id]!.toFixed(2)}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs font-medium text-zinc-700">
+                  Monto recibido <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="number"
+                  step={0.01}
+                  min={0}
+                  required
+                  value={montoPago}
+                  onChange={(e) => setMontoPago(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                />
+                {monedaPago && montoPago !== "" && (
+                  <p className="mt-1 text-xs text-zinc-500">
+                    El total de la factura equivale a {monedaPago.simbolo}{" "}
+                    {equivalenciaPorMoneda[monedaPago.id]?.toFixed(2) ?? "—"} en esta
+                    moneda.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end gap-3 border-t border-zinc-200 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setModalPago(false)}
+                  className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 active:scale-[0.98]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={guardando || montoPago === ""}
+                  className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-60"
+                >
+                  {guardando ? "Registrando..." : "Confirmar pago completo"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

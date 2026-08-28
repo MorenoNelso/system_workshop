@@ -3,6 +3,16 @@ import { listMovimientos } from "@/lib/actions/inventario";
 
 export const metadata: Metadata = { title: "Movimientos de Inventario — Taller" };
 
+interface MovimientoRow {
+  id: string;
+  tipo: "entrada" | "salida" | "ajuste";
+  cantidad: number;
+  motivo: string | null;
+  fecha: string;
+  repuesto: { nombre: string; sku: string | null } | null;
+  usuario: { nombre: string; email: string } | null;
+}
+
 export default async function InventarioPage() {
   const movimientos = await listMovimientos();
 
@@ -51,7 +61,7 @@ export default async function InventarioPage() {
                   </td>
                 </tr>
               ) : (
-                movimientos.map((m: any) => (
+                movimientos.map((m: MovimientoRow) => (
                   <tr key={m.id} className="transition hover:bg-zinc-50">
                     <td className="px-4 py-3 text-xs text-zinc-500 whitespace-nowrap">
                       {new Date(m.fecha).toLocaleString("es-ES", {

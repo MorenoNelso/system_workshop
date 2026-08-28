@@ -73,11 +73,15 @@ export default async function DashboardLayout({
             { href: "/motos", label: "Motos" },
             { href: "/repuestos", label: "Repuestos" },
             { href: "/inventario", label: "Kardex / Stock" },
+            { href: "/facturas", label: "Facturación" },
             { href: "/categorias", label: "Categorías" },
             { href: "/proveedores", label: "Proveedores" },
             { href: "/empleados", label: "Empleados / Mecánicos" },
             ...(user.rol === "administrador"
-              ? [{ href: "/seguridad", label: "Seguridad" }]
+              ? [
+                  { href: "/tasas", label: "Tasas de Cambio" },
+                  { href: "/seguridad", label: "Seguridad" },
+                ]
               : []),
           ].map((l) => (
             <Link

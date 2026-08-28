@@ -53,6 +53,7 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
   - `lib/actions/` — `clientes.ts`, `facturas.ts`, `inventario.ts`, `ordenes.ts` (estructura base)
   - `types/database.types.ts`
   - `middleware.ts` en raíz
+- **Fases 2–5 implementadas**: CRUD completo (clientes, motos, categorías, proveedores, repuestos, empleados), órdenes de servicio con snapshots de precio/comisión y descuento de stock, facturación digital desde órdenes cerradas (sin PDF), pagos completos (sin abonos) y tasas de cambio manuales (`/tasas`, solo admin). Conversión en pantalla con tasa vigente sin recalcular montos congelados. Dashboard con alertas de stock bajo, pipeline de órdenes activas, gráfico de ventas semanales (puro CSS, sin librería), ingresos por mecánico y reporte de ventas por rango — con permisos por rol (`colaborador` ve solo su propia producción, no reportes financieros).
 
 ---
 
@@ -64,8 +65,8 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 | 1 | Auth + roles (login, OTP, 2FA, middleware) | ✅ Completa |
 | 2 | CRUD: Clientes, Motos, Repuestos, Proveedores | ✅ Completa |
 | 3 | Órdenes de servicio, Mano de obra, Empleados | ✅ Completa |
-| 4 | Facturación, Pagos, Multi-moneda | ⬜ Pendiente |
-| 5 | Dashboard y Reportes | ⬜ Pendiente |
+| 4 | Facturación, Pagos, Multi-moneda | ✅ Completa |
+| 5 | Dashboard y Reportes | ✅ Completa |
 | 6 | Hardening de seguridad (auditoría completa) | ⬜ Pendiente |
 | 7 | Testing | ⬜ Pendiente |
 | 8 | Despliegue a producción (Netlify + Supabase Pro) | ⬜ Pendiente |

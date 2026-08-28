@@ -16,7 +16,65 @@ import {
 
 const PATH = "/ordenes";
 
-export async function listOrdenes() {
+/* ------------------------------------------------------------------ */
+/* Formas de los datos que consumen los componentes                    */
+/* ------------------------------------------------------------------ */
+
+export type EstadoOrden = "recibido" | "en_proceso" | "terminado" | "entregado";
+
+export interface OrdenRow {
+  id: string;
+  estado: string;
+  fecha_ingreso: string;
+  diagnostico: string | null;
+  observaciones: string | null;
+  cliente: { nombre: string; telefono: string | null } | null;
+  moto: { marca: string; modelo: string; placa: string | null } | null;
+  empleado_asignado: { nombre: string } | null;
+}
+
+export interface RepuestoDetalleOrden {
+  id: string;
+  cantidad: number;
+  precio_unitario_aplicado: number;
+  repuesto: { nombre: string; sku: string | null } | null;
+  moneda: { simbolo: string } | null;
+}
+
+export interface ManoObraDetalleOrden {
+  id: string;
+  descripcion: string;
+  monto: number;
+  porcentaje_comision_aplicado: number | null;
+  comision_calculada: number | null;
+  empleado: { nombre: string } | null;
+  moneda: { simbolo: string } | null;
+}
+
+export interface OrdenDetalle {
+  id: string;
+  estado: EstadoOrden;
+  fecha_ingreso: string;
+  diagnostico: string | null;
+  observaciones: string | null;
+  empleado_asignado_id: string | null;
+  cliente: {
+    nombre: string;
+    telefono: string | null;
+    documento?: string | null;
+  } | null;
+  moto: {
+    marca: string;
+    modelo: string;
+    placa: string | null;
+    cilindraje: string | null;
+    color: string | null;
+  } | null;
+  repuestos: RepuestoDetalleOrden[];
+  mano_obra: ManoObraDetalleOrden[];
+}
+
+export async function listOrdenes(): Promise<OrdenRow[]> {
   const supabase = await db();
   const { data, error } = await supabase
     .from("ordenes_servicio")
@@ -25,10 +83,10 @@ export async function listOrdenes() {
     )
     .order("fecha_ingreso", { ascending: false });
   if (error) return [];
-  return data;
+  return (data ?? []) as unknown as OrdenRow[];
 }
 
-export async function getOrdenById(id: string) {
+export async function getOrdenById(id: string): Promise<OrdenDetalle | null> {
   const supabase = await db();
   const { data: orden, error: ordenErr } = await supabase
     .from("ordenes_servicio")
@@ -52,9 +110,9 @@ export async function getOrdenById(id: string) {
   ]);
 
   return {
-    ...orden,
-    repuestos: repuestos ?? [],
-    mano_obra: manoObra ?? [],
+    ...(orden as unknown as OrdenDetalle),
+    repuestos: (repuestos ?? []) as unknown as RepuestoDetalleOrden[],
+    mano_obra: (manoObra ?? []) as unknown as ManoObraDetalleOrden[],
   };
 }
 

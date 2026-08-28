@@ -1,27 +1,314 @@
-import { getCurrentUser } from "@/lib/auth/session";
+import type { Metadata } from "next";
+import Link from "next/link";
 
-export default async function HomePage() {
-  // El layout ya asegura sesión; getCurrentUser aquí solo lee de la caché.
-  const user = await getCurrentUser();
+import { VentasChart } from "@/components/dashboard/ventas-chart";
+import { VentasRango } from "@/components/dashboard/ventas-rango";
+import { requireUser } from "@/lib/auth/session";
+import {
+  getAlertasStock,
+  getIngresosPorMecanico,
+  getMiProduccion,
+  getResumenOrdenes,
+  getVentasSemanales,
+} from "@/lib/actions/dashboard";
+
+export const metadata: Metadata = { title: "Dashboard — Taller" };
+
+function fmt(n: number, simbolo: string): string {
+  return `${simbolo} ${n.toLocaleString("es-CO", { maximumFractionDigits: 0 })}`;
+}
+
+function PipelineBlock({
+  label,
+  count,
+  stripe,
+}: {
+  label: string;
+  count: number;
+  stripe: string;
+}) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+      <div className={`h-1 w-full ${stripe}`} aria-hidden="true" />
+      <div className="p-5">
+        <p className="text-3xl font-black tabular-nums text-zinc-900">{count}</p>
+        <p className="mt-1 text-xs font-medium uppercase tracking-wider text-zinc-500">
+          {label}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export default async function DashboardPage() {
+  const user = await requireUser();
+  const esAdmin = user.rol === "administrador";
+
+  const [alertas, resumen, ventasSemanales, ingresosMecanicos, miProduccion] =
+    await Promise.all([
+      getAlertasStock(),
+      getResumenOrdenes(),
+      esAdmin ? getVentasSemanales(12) : Promise.resolve(null),
+      esAdmin ? getIngresosPorMecanico() : Promise.resolve(null),
+      !esAdmin ? getMiProduccion(user.id) : Promise.resolve(null),
+    ]);
+
+  const hoy = new Date().toLocaleDateString("es-CO", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
+  const totalActivas =
+    resumen.recibido + resumen.en_proceso + resumen.terminado;
 
   return (
     <div className="flex flex-col gap-6">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <p className="text-xs uppercase tracking-wide text-zinc-500">
-          Bienvenido
-        </p>
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-900">
-          Hola, {user?.nombre.split(" ")[0]}
-        </h1>
-        <p className="mt-2 text-sm text-zinc-600">
-          Rol actual: <span className="font-medium capitalize">{user?.rol}</span>
-        </p>
+      {/* Encabezado compacto */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
+            Hola, {user.nombre.split(" ")[0]}
+          </h1>
+          <p className="mt-0.5 text-sm capitalize text-zinc-500">{hoy}</p>
+        </div>
+        <Link
+          href="/ordenes"
+          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-blue-700"
+        >
+          + Nueva orden
+        </Link>
+      </div>
+
+      {/* Alertas de stock bajo */}
+      {alertas.length > 0 ? (
+        <section className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
+          <div className="h-1 w-full bg-amber-400" aria-hidden="true" />
+          <div className="p-5">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-zinc-900">
+              Repuestos por reponer
+              <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800">
+                {alertas.length}
+              </span>
+            </h2>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {alertas.map((r) => (
+                <Link
+                  key={r.id}
+                  href="/repuestos"
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-sm transition hover:shadow-sm ${
+                    r.stock_actual === 0
+                      ? "border-red-200 bg-red-50 text-red-800"
+                      : "border-amber-200 bg-amber-50 text-amber-800"
+                  }`}
+                >
+                  <span className="font-medium">{r.nombre}</span>
+                  <span className="text-xs tabular-nums">
+                    {r.stock_actual === 0
+                      ? "agotado"
+                      : `${r.stock_actual} / mín ${r.stock_minimo}`}
+                  </span>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+          <span className="text-sm font-medium text-emerald-800">
+            Todo el inventario está en niveles saludables
+          </span>
+        </section>
+      )}
+
+      {/* Pipeline de órdenes activas */}
+      <section className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-zinc-900">
+            Órdenes activas
+          </h2>
+          <span className="text-xs text-zinc-500">
+            {totalActivas} en curso · {resumen.entregado} entregadas
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-3 sm:gap-4">
+          <PipelineBlock
+            label="Recibido"
+            count={resumen.recibido}
+            stripe="bg-amber-400"
+          />
+          <PipelineBlock
+            label="En proceso"
+            count={resumen.en_proceso}
+            stripe="bg-blue-400"
+          />
+          <PipelineBlock
+            label="Terminado"
+            count={resumen.terminado}
+            stripe="bg-purple-400"
+          />
+        </div>
       </section>
 
-      <section className="rounded-2xl border border-dashed border-zinc-300 bg-white p-6 text-sm text-zinc-500">
-        Aquí irán las tarjetas del dashboard (clientes, órdenes, facturación…)
-        en las siguientes fases.
-      </section>
+      {/* Gráfico de ventas semanales (solo admin) */}
+      {esAdmin && ventasSemanales && (
+        <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 shadow-sm">
+          <div className="h-1 w-full bg-pink-400" aria-hidden="true" />
+          <div className="p-5 sm:p-6">
+            <div className="mb-4 flex items-end justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-white">
+                  Ventas semanales
+                </h2>
+                <p className="text-xs text-zinc-400">
+                  Últimas 12 semanas · {ventasSemanales.moneda.codigo}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs uppercase tracking-wider text-zinc-500">
+                  Total del período
+                </p>
+                <p className="text-lg font-black tabular-nums text-white">
+                  {fmt(
+                    ventasSemanales.semanas.reduce((a, s) => a + s.total, 0),
+                    ventasSemanales.moneda.simbolo,
+                  )}
+                </p>
+              </div>
+            </div>
+            <VentasChart
+              semanas={ventasSemanales.semanas}
+              simbolo={ventasSemanales.moneda.simbolo}
+            />
+          </div>
+        </section>
+      )}
+
+      {/* Reportes financieros (admin) o mi producción (colaborador) */}
+      {esAdmin ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          {/* Ingresos por mecánico */}
+          <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+            <div className="h-1 w-full bg-pink-400" aria-hidden="true" />
+            <div className="p-5">
+              <h2 className="text-sm font-semibold text-zinc-900">
+                Ingresos por mecánico
+              </h2>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Comisiones y mano de obra acumulada
+              </p>
+
+              {ingresosMecanicos && ingresosMecanicos.mecanicos.length > 0 ? (
+                <div className="mt-4 overflow-x-auto">
+                  <table className="min-w-full text-sm">
+                    <thead className="text-left text-xs uppercase tracking-wide text-zinc-400">
+                      <tr>
+                        <th className="pb-2 font-medium">Mecánico</th>
+                        <th className="pb-2 text-right font-medium">Servicios</th>
+                        <th className="pb-2 text-right font-medium">Mano obra</th>
+                        <th className="pb-2 text-right font-medium">Comisión</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100">
+                      {ingresosMecanicos.mecanicos.map((m) => (
+                        <tr key={m.empleadoId}>
+                          <td className="py-2.5 font-medium text-zinc-900">
+                            {m.nombre}
+                          </td>
+                          <td className="py-2.5 text-right tabular-nums text-zinc-600">
+                            {m.cantidadServicios}
+                          </td>
+                          <td className="py-2.5 text-right tabular-nums font-medium text-zinc-900">
+                            {fmt(m.totalManoObra, ingresosMecanicos.moneda.simbolo)}
+                          </td>
+                          <td className="py-2.5 text-right tabular-nums font-bold text-emerald-700">
+                            {fmt(m.totalComision, ingresosMecanicos.moneda.simbolo)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="mt-4 text-sm text-zinc-500">
+                  No hay servicios de mano de obra registrados todavía.
+                </p>
+              )}
+            </div>
+          </section>
+
+          {/* Ventas por rango de fechas */}
+          <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+            <div className="h-1 w-full bg-pink-400" aria-hidden="true" />
+            <div className="p-5">
+              <h2 className="text-sm font-semibold text-zinc-900">
+                Ventas por período
+              </h2>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Consulta el total facturado entre dos fechas
+              </p>
+              <div className="mt-4">
+                {ingresosMecanicos && (
+                  <VentasRango moneda={ingresosMecanicos.moneda} />
+                )}
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : (
+        /* Mi producción (colaborador) */
+        <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+          <div className="h-1 w-full bg-pink-400" aria-hidden="true" />
+          <div className="p-5">
+            <h2 className="text-sm font-semibold text-zinc-900">
+              Mi producción
+            </h2>
+            <p className="mt-0.5 text-xs text-zinc-500">
+              Tu trabajo y comisiones acumuladas
+            </p>
+
+            {miProduccion ? (
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div className="rounded-xl bg-zinc-50 p-4">
+                  <p className="text-xs text-zinc-500">Órdenes asignadas</p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-zinc-900">
+                    {miProduccion.produccion.ordenesAsignadas}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-zinc-50 p-4">
+                  <p className="text-xs text-zinc-500">Servicios</p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-zinc-900">
+                    {miProduccion.produccion.cantidadServicios}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-zinc-50 p-4">
+                  <p className="text-xs text-zinc-500">Mano de obra</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-zinc-900">
+                    {fmt(
+                      miProduccion.produccion.totalManoObra,
+                      miProduccion.moneda.simbolo,
+                    )}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-emerald-50 p-4">
+                  <p className="text-xs text-emerald-600">Mis comisiones</p>
+                  <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700">
+                    {fmt(
+                      miProduccion.produccion.totalComision,
+                      miProduccion.moneda.simbolo,
+                    )}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                Tu usuario no está vinculado a un empleado. Pide al administrador
+                que configure tu perfil en <Link href="/empleados" className="font-medium underline">Empleados</Link>.
+              </p>
+            )}
+          </div>
+        </section>
+      )}
     </div>
   );
 }
