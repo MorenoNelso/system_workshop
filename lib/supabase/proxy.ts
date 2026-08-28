@@ -60,7 +60,7 @@ export async function updateSession(
   if (user) {
     const { data: aal } =
       await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    mfaPending = aal?.nextLevel === "aal2";
+    mfaPending = aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2";
   }
 
   const { pathname } = request.nextUrl;

@@ -34,7 +34,9 @@ export async function getAuthState(): Promise<AuthState> {
 
   const { data: aal } =
     await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === "aal2") return { status: "mfa_pending" };
+  if (aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2") {
+    return { status: "mfa_pending" };
+  }
 
   return { status: "authed" };
 }
@@ -58,7 +60,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   // Sesión débil (2FA pendiente): no cuenta como autenticado.
   const { data: aal } =
     await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === "aal2") return null;
+  if (aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2") return null;
 
   const { data, error } = await supabase
     .from("usuarios")

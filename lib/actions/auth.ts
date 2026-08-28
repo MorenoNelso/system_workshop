@@ -66,7 +66,7 @@ export async function login(
   // Si el usuario tiene 2FA (TOTP verificado), exige el segundo paso.
   const { data: aal } =
     await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel === "aal2") {
+  if (aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2") {
     return { mfa: true };
   }
 
