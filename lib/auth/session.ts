@@ -69,8 +69,12 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     .maybeSingle();
 
   if (error || !data || !data.activo) {
-    // Si el usuario existe en Auth pero no en public.usuarios (o está inactivo),
-    // cerramos la sesión para evitar bucles de redirección.
+    console.error("[Auth] No se encontró usuario en public.usuarios o error RLS:", {
+      authUserId: user.id,
+      authUserEmail: user.email,
+      dbData: data,
+      dbError: error,
+    });
     await supabase.auth.signOut();
     return null;
   }
