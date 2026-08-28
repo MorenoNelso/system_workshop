@@ -68,8 +68,12 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (error || !data) return null;
-  if (!data.activo) return null;
+  if (error || !data || !data.activo) {
+    // Si el usuario existe en Auth pero no en public.usuarios (o está inactivo),
+    // cerramos la sesión para evitar bucles de redirección.
+    await supabase.auth.signOut();
+    return null;
+  }
 
   return data;
 });

@@ -84,7 +84,13 @@ export async function updateSession(
   }
 
   // Usuario con sesión completa tratando de ver /login o /recuperar → home
-  if (user && !mfaPending && publicRoute) {
+  // (Solo si no viene rebotado con parámetro ?redirect=...)
+  if (
+    user &&
+    !mfaPending &&
+    publicRoute &&
+    !request.nextUrl.searchParams.has("redirect")
+  ) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     url.search = "";
