@@ -4,6 +4,7 @@ import { repuestoSchema, validate } from "@/lib/schemas";
 import {
   db,
   friendlyDbError,
+  runOnce,
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
@@ -25,15 +26,22 @@ export async function listRepuestos() {
 export async function createRepuesto(raw: unknown): Promise<ActionResult> {
   const parsed = validate(repuestoSchema, raw);
   if (!parsed.ok) return parsed;
-  const supabase = await db();
-  const { data, error } = await supabase
-    .from("repuestos")
-    .insert(parsed.data)
-    .select()
-    .single();
-  if (error) return { ok: false, error: friendlyDbError("crear el repuesto") };
-  touch(PATH);
-  return { ok: true, data };
+
+  const key = `create:repuestos:${JSON.stringify(parsed.data)}`;
+
+  return runOnce<ActionResult>(key, async () => {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("repuestos")
+      .insert(parsed.data)
+      .select(
+        "*, categoria:categorias_repuesto(nombre), proveedor:proveedores(nombre), moneda:monedas(simbolo)",
+      )
+      .single();
+    if (error) return { ok: false, error: friendlyDbError("crear el repuesto") };
+    touch(PATH);
+    return { ok: true, data };
+  });
 }
 
 export async function updateRepuesto(
@@ -47,7 +55,9 @@ export async function updateRepuesto(
     .from("repuestos")
     .update(parsed.data)
     .eq("id", id)
-    .select()
+    .select(
+      "*, categoria:categorias_repuesto(nombre), proveedor:proveedores(nombre), moneda:monedas(simbolo)",
+    )
     .single();
   if (error) return { ok: false, error: friendlyDbError("actualizar el repuesto") };
   touch(PATH);

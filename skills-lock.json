@@ -1,6 +1,18 @@
 {
   "version": 1,
   "skills": {
+    "design-taste-frontend": {
+      "source": "leonxlnx/taste-skill",
+      "sourceType": "github",
+      "skillPath": "skills/taste-skill/SKILL.md",
+      "computedHash": "899b84384f74f540ea5284d9b2e9234e050998b42eacc805410b518d4226c0b3"
+    },
+    "firecrawl-dashboard-reporting": {
+      "source": "firecrawl/firecrawl-workflows",
+      "sourceType": "github",
+      "skillPath": "skills/firecrawl-dashboard-reporting/SKILL.md",
+      "computedHash": "d5b3c86ad9da9f9d91328bc71b393a4b8874b5cc586a0e92b63db1458584a588"
+    },
     "frontend-design": {
       "source": "anthropics/skills",
       "sourceType": "github",

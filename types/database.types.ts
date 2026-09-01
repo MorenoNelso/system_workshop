@@ -373,7 +373,7 @@ export interface Database {
       };
       facturas: {
         Row: Row<{
-          orden_id: string;
+          orden_id: string | null;
           cliente_id: string;
           numero_consecutivo: number;
           subtotal: number;
@@ -384,7 +384,7 @@ export interface Database {
           fecha_emision: string;
         }>;
         Insert: Insert<{
-          orden_id: string;
+          orden_id?: string | null;
           cliente_id: string;
           numero_consecutivo?: number;
           subtotal: number;
@@ -395,7 +395,7 @@ export interface Database {
           fecha_emision?: string;
         }>;
         Update: Update<{
-          orden_id?: string;
+          orden_id?: string | null;
           cliente_id?: string;
           numero_consecutivo?: number;
           subtotal?: number;
@@ -404,6 +404,60 @@ export interface Database {
           tasa_aplicada?: number | null;
           estado_pago?: "pendiente" | "pagada" | "anulada";
           fecha_emision?: string;
+        }>;
+        Relationships: [];
+      };
+      factura_detalle_repuestos: {
+        Row: Row<{
+          factura_id: string;
+          repuesto_id: string;
+          cantidad: number;
+          precio_unitario_aplicado: number;
+          moneda_id: string;
+        }>;
+        Insert: Insert<{
+          factura_id: string;
+          repuesto_id: string;
+          cantidad: number;
+          precio_unitario_aplicado: number;
+          moneda_id: string;
+        }>;
+        Update: Update<{
+          factura_id?: string;
+          repuesto_id?: string;
+          cantidad?: number;
+          precio_unitario_aplicado?: number;
+          moneda_id?: string;
+        }>;
+        Relationships: [];
+      };
+      factura_detalle_servicios: {
+        Row: Row<{
+          factura_id: string;
+          empleado_id: string | null;
+          descripcion: string;
+          monto: number;
+          moneda_id: string;
+          porcentaje_comision_aplicado: number | null;
+          comision_calculada: number | null;
+        }>;
+        Insert: Insert<{
+          factura_id: string;
+          empleado_id?: string | null;
+          descripcion: string;
+          monto: number;
+          moneda_id: string;
+          porcentaje_comision_aplicado?: number | null;
+          comision_calculada?: number | null;
+        }>;
+        Update: Update<{
+          factura_id?: string;
+          empleado_id?: string | null;
+          descripcion?: string;
+          monto?: number;
+          moneda_id?: string;
+          porcentaje_comision_aplicado?: number | null;
+          comision_calculada?: number | null;
         }>;
         Relationships: [];
       };

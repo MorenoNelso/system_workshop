@@ -7,7 +7,7 @@ import { listRepuestos } from "@/lib/actions/repuestos";
 import { listMecanicosActivos } from "@/lib/actions/empleados";
 import { db } from "@/lib/actions/_crud-helpers";
 
-export const metadata: Metadata = { title: "Detalle de Orden — Taller" };
+export const metadata: Metadata = { title: "Detalle de Orden — Pacho Motos" };
 
 interface PageProps {
   params: Promise<{ id: string }>;

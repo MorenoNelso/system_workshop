@@ -6,7 +6,7 @@ import { listClientes } from "@/lib/actions/clientes";
 import { listMotos } from "@/lib/actions/motos";
 import { listMecanicosActivos } from "@/lib/actions/empleados";
 
-export const metadata: Metadata = { title: "Órdenes de Servicio — Taller" };
+export const metadata: Metadata = { title: "Órdenes de Servicio — Pacho Motos" };
 
 export default async function OrdenesPage() {
   const [ordenes, clientes, motos, empleados] = await Promise.all([

@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { SeguridadClient } from "./seguridad-client";
 
 export const metadata: Metadata = {
-  title: "Seguridad — Taller",
+  title: "Seguridad — Pacho Motos",
 };
 
 export default async function SeguridadPage() {

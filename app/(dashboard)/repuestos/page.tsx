@@ -6,7 +6,7 @@ import { listProveedores } from "@/lib/actions/proveedores";
 import { db } from "@/lib/actions/_crud-helpers";
 import { RepuestosClient } from "./repuestos-client";
 
-export const metadata: Metadata = { title: "Repuestos — Taller" };
+export const metadata: Metadata = { title: "Repuestos — Pacho Motos" };
 
 async function listMonedas() {
   const supabase = await db();

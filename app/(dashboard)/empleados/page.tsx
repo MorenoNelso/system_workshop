@@ -4,7 +4,7 @@ import { listEmpleados } from "@/lib/actions/empleados";
 import { db } from "@/lib/actions/_crud-helpers";
 import { EmpleadosClient } from "./empleados-client";
 
-export const metadata: Metadata = { title: "Empleados — Taller" };
+export const metadata: Metadata = { title: "Empleados — Pacho Motos" };
 
 async function listMonedas() {
   const supabase = await db();

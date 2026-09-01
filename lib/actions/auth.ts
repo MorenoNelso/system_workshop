@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimitLogin, rateLimitMfa, rateLimitRecuperacion } from "@/lib/rate-limit";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
@@ -52,6 +53,10 @@ export async function login(
     return { errors: z.flattenError(parsed.error).fieldErrors };
   }
 
+  if (!rateLimitLogin(parsed.data.email)) {
+    return { message: "Demasiados intentos fallidos. Espera 15 minutos e intenta de nuevo." };
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase.auth.signInWithPassword({
@@ -89,7 +94,11 @@ export async function verificarMfa(
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return { message: "Sesión no válida. Vuelve a iniciar sesión." };
+  if (!user) return { message: "Sesi\u00f3n no v\u00e1lida. Vuelve a iniciar sesi\u00f3n." };
+
+  if (!rateLimitMfa(user.id)) {
+    return { message: "Demasiados intentos. Espera 15 minutos e intenta de nuevo." };
+  }
 
   const factor = (user.factors ?? []).find((f) => f.status === "verified");
   if (!factor)
@@ -145,7 +154,11 @@ export async function solicitarRecuperacion(
 ): Promise<RecuperarState> {
   const parsed = emailSchema.safeParse({ email: formData.get("email") });
   if (!parsed.success) {
-    return { message: parsed.error.issues[0]?.message ?? "Correo inválido." };
+    return { message: parsed.error.issues[0]?.message ?? "Correo inv\u00e1lido." };
+  }
+
+  if (!rateLimitRecuperacion(parsed.data.email)) {
+    return { message: "Demasiadas solicitudes. Espera 15 minutos e intenta de nuevo." };
   }
 
   const supabase = await createClient();

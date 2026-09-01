@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { listMovimientos } from "@/lib/actions/inventario";
 
-export const metadata: Metadata = { title: "Movimientos de Inventario — Taller" };
+export const metadata: Metadata = { title: "Movimientos de Inventario — Pacho Motos" };
 
 interface MovimientoRow {
   id: string;
@@ -21,7 +21,7 @@ export default async function InventarioPage() {
       case "entrada":
         return <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-800 border border-emerald-200">+ Entrada</span>;
       case "salida":
-        return <span className="inline-flex rounded-full bg-rose-100 px-2 py-0.5 text-xs font-semibold text-rose-800 border border-rose-200">- Salida</span>;
+        return <span className="inline-flex rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700 border border-red-200">- Salida</span>;
       case "ajuste":
         return <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 border border-amber-200">~ Ajuste</span>;
       default:

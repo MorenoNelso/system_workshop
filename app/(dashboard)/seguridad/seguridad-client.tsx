@@ -79,7 +79,7 @@ export function SeguridadClient({ totpActive }: { totpActive: boolean }) {
             value={code}
             onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
             placeholder="123456"
-            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm tracking-[0.4em] outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-center text-sm tracking-[0.4em] outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
           />
         </div>
         {error ? (
@@ -99,7 +99,7 @@ export function SeguridadClient({ totpActive }: { totpActive: boolean }) {
             type="button"
             disabled={status === "loading" || code.length !== 6}
             onClick={confirmEnroll}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98] disabled:opacity-60"
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
           >
             {status === "loading" ? "Verificando…" : "Activar 2FA"}
           </button>
@@ -151,7 +151,7 @@ export function SeguridadClient({ totpActive }: { totpActive: boolean }) {
             type="button"
             disabled={status === "loading"}
             onClick={startEnroll}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98] disabled:opacity-60"
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
           >
             {status === "loading" ? "Procesando…" : "Configurar 2FA"}
           </button>

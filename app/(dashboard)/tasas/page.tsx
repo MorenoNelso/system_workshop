@@ -4,7 +4,7 @@ import { TasasView } from "@/components/tasas/tasas-view";
 import { listMonedas, listTasasVigentes } from "@/lib/actions/tasas";
 import { requireRole } from "@/lib/auth/session";
 
-export const metadata: Metadata = { title: "Tasas de Cambio — Taller" };
+export const metadata: Metadata = { title: "Tasas de Cambio — Pacho Motos" };
 
 export default async function TasasPage() {
   await requireRole("administrador");

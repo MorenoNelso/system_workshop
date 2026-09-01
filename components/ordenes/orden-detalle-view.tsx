@@ -90,6 +90,7 @@ export function OrdenDetalleView({
   const router = useRouter();
   const [estado, setEstado] = useState(orden.estado);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [errorEstado, setErrorEstado] = useState<string | null>(null);
 
   // Form states Repuesto
   const [modalRepuesto, setModalRepuesto] = useState(false);
@@ -128,7 +129,7 @@ export function OrdenDetalleView({
       setEstado(nuevoEstado);
       router.refresh();
     } else {
-      alert(res.error);
+      setErrorEstado(res.error);
     }
   }
 
@@ -163,7 +164,7 @@ export function OrdenDetalleView({
     }
     const res = await eliminarRepuestoDeOrden(detalleId, orden.id);
     if (!res.ok) {
-      alert(res.error);
+      setErrorRepuesto(res.error);
       return;
     }
     router.refresh();
@@ -201,7 +202,7 @@ export function OrdenDetalleView({
     if (!confirm("¿Eliminar este ítem de mano de obra?")) return;
     const res = await eliminarManoObraDeOrden(detalleId, orden.id);
     if (!res.ok) {
-      alert(res.error);
+      setErrorMO(res.error);
       return;
     }
     router.refresh();
@@ -252,19 +253,24 @@ export function OrdenDetalleView({
         </div>
 
         {/* Selector de Estado */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-medium text-zinc-500">Estado:</span>
-          <select
-            value={estado}
-            disabled={cambiandoEstado}
-            onChange={(e) => handleCambioEstado(e.target.value as EstadoOrden)}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-800 shadow-sm outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
-          >
-            <option value="recibido">🟡 Recibido</option>
-            <option value="en_proceso">🔵 En Proceso</option>
-            <option value="terminado">🟣 Terminado</option>
-            <option value="entregado">🟢 Entregado</option>
-          </select>
+        <div className="flex flex-col items-end gap-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-zinc-500">Estado:</span>
+            <select
+              value={estado}
+              disabled={cambiandoEstado}
+              onChange={(e) => handleCambioEstado(e.target.value as EstadoOrden)}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm font-semibold text-zinc-800 shadow-sm outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+            >
+              <option value="recibido">Recibido</option>
+              <option value="en_proceso">En Proceso</option>
+              <option value="terminado">Terminado</option>
+              <option value="entregado">Entregado</option>
+            </select>
+          </div>
+          {errorEstado && (
+            <p className="text-xs text-red-600">{errorEstado}</p>
+          )}
         </div>
       </div>
 
@@ -277,7 +283,12 @@ export function OrdenDetalleView({
           </div>
           <div className="mt-3 space-y-1 text-sm">
             <p className="font-medium text-zinc-900">{orden.cliente?.nombre}</p>
-            <p className="text-zinc-500">📞 {orden.cliente?.telefono}</p>
+            <p className="flex items-center gap-1.5 text-zinc-500">
+              <svg className="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+              </svg>
+              {orden.cliente?.telefono}
+            </p>
             {orden.cliente?.documento && <p className="text-xs text-zinc-400">Doc: {orden.cliente.documento}</p>}
           </div>
         </div>
@@ -327,7 +338,7 @@ export function OrdenDetalleView({
               setErrorRepuesto(null);
               setModalRepuesto(true);
             }}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98]"
+            className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98]"
           >
             + Agregar Repuesto
           </button>
@@ -415,7 +426,7 @@ export function OrdenDetalleView({
               setErrorMO(null);
               setModalManoObra(true);
             }}
-            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98]"
+            className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98]"
           >
             + Agregar Mano de Obra
           </button>
@@ -507,7 +518,7 @@ export function OrdenDetalleView({
               <p className="text-sm font-semibold">{monedaSimbolo} {totalManoObra.toFixed(2)}</p>
             </div>
             <div className="border-l border-zinc-700 pl-6">
-              <p className="text-xs uppercase tracking-wider text-pink-400 font-semibold">Total General</p>
+              <p className="text-xs uppercase tracking-wider text-white font-semibold">Total General</p>
               <p className="text-2xl font-black text-white">{monedaSimbolo} {(totalRepuestos + totalManoObra).toFixed(2)}</p>
             </div>
           </div>
@@ -518,7 +529,6 @@ export function OrdenDetalleView({
       {modalRepuesto && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4">
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
-            <div className="h-1 w-full bg-pink-400" />
             <div className="px-6 pt-5 pb-3">
               <h3 className="text-base font-semibold text-zinc-900">Agregar Repuesto a la Orden</h3>
               <p className="text-xs text-zinc-500">El stock se descontará automáticamente.</p>
@@ -537,7 +547,7 @@ export function OrdenDetalleView({
                   required
                   value={repuestoSeleccionadoId}
                   onChange={(e) => setRepuestoSeleccionadoId(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                 >
                   <option value="">— Seleccionar —</option>
                   {repuestosDisponibles.map((r) => (
@@ -564,7 +574,7 @@ export function OrdenDetalleView({
                   required
                   value={cantidadRepuesto}
                   onChange={(e) => setCantidadRepuesto(Number(e.target.value))}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                 />
               </div>
 
@@ -579,7 +589,7 @@ export function OrdenDetalleView({
                 <button
                   type="submit"
                   disabled={guardandoRepuesto}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                 >
                   {guardandoRepuesto ? "Agregando..." : "Agregar Repuesto"}
                 </button>
@@ -593,7 +603,6 @@ export function OrdenDetalleView({
       {modalManoObra && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4">
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
-            <div className="h-1 w-full bg-pink-400" />
             <div className="px-6 pt-5 pb-3">
               <h3 className="text-base font-semibold text-zinc-900">Agregar Mano de Obra</h3>
               <p className="text-xs text-zinc-500">Se calculará la comisión del mecánico automáticamente.</p>
@@ -612,7 +621,7 @@ export function OrdenDetalleView({
                   required
                   value={mecanicoId}
                   onChange={(e) => handleMecanicoChange(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                 >
                   <option value="">— Seleccionar mecánico —</option>
                   {mecanicos.map((m) => (
@@ -631,7 +640,7 @@ export function OrdenDetalleView({
                   placeholder="Ej: Calibración de válvulas, cambio de kit de arrastre..."
                   value={descripcionMO}
                   onChange={(e) => setDescripcionMO(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                 />
               </div>
 
@@ -646,7 +655,7 @@ export function OrdenDetalleView({
                     placeholder="0.00"
                     value={montoMO}
                     onChange={(e) => setMontoMO(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   />
                 </div>
 
@@ -656,7 +665,7 @@ export function OrdenDetalleView({
                     required
                     value={monedaMOId}
                     onChange={(e) => setMonedaMOId(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   >
                     {monedas.map((m) => (
                       <option key={m.id} value={m.id}>
@@ -679,7 +688,7 @@ export function OrdenDetalleView({
                   placeholder="Ej: 30"
                   value={comisionMO}
                   onChange={(e) => setComisionMO(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                 />
               </div>
 
@@ -703,7 +712,7 @@ export function OrdenDetalleView({
                 <button
                   type="submit"
                   disabled={guardandoMO}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                  className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
                 >
                   {guardandoMO ? "Guardando..." : "Guardar Mano de Obra"}
                 </button>

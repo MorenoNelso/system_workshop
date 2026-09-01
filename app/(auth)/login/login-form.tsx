@@ -6,7 +6,7 @@ import { useActionState } from "react";
 import { login, verificarMfa, type LoginState } from "@/lib/actions/auth";
 
 const inputClass =
-  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60";
+  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-brand-600 focus:ring-2 focus:ring-brand-100 disabled:opacity-60";
 
 export function LoginForm({
   redirectTo,
@@ -62,7 +62,7 @@ export function LoginForm({
           <button
             type="submit"
             disabled={mfaPending}
-            className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {mfaPending ? "Verificando…" : "Verificar"}
           </button>
@@ -138,7 +138,7 @@ export function LoginForm({
         <button
           type="submit"
           disabled={passwordPending}
-          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {passwordPending ? "Entrando…" : "Entrar"}
         </button>
@@ -147,7 +147,7 @@ export function LoginForm({
       <div className="mt-1 text-center">
         <Link
           href="/recuperar"
-          className="text-xs text-zinc-500 underline-offset-4 hover:text-blue-700 hover:underline"
+          className="text-xs text-zinc-500 underline-offset-4 hover:text-brand-700 hover:underline"
         >
           ¿Olvidaste tu contraseña?
         </Link>

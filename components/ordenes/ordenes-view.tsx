@@ -46,7 +46,7 @@ interface Props {
 const ESTADOS = [
   { id: "todos", label: "Todas" },
   { id: "recibido", label: "Recibidas", color: "bg-amber-100 text-amber-800 border-amber-200" },
-  { id: "en_proceso", label: "En Proceso", color: "bg-blue-100 text-blue-800 border-blue-200" },
+  { id: "en_proceso", label: "En Proceso", color: "bg-brand-100 text-brand-800 border-brand-200" },
   { id: "terminado", label: "Terminadas", color: "bg-purple-100 text-purple-800 border-purple-200" },
   { id: "entregado", label: "Entregadas", color: "bg-emerald-100 text-emerald-800 border-emerald-200" },
 ];
@@ -112,7 +112,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
     if (!confirm("¿Estás seguro de eliminar esta orden?")) return;
     const res = await deleteOrden(id);
     if (!res.ok) {
-      alert(res.error);
+      setError(res.error);
       return;
     }
     router.refresh();
@@ -123,7 +123,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
       case "recibido":
         return <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">Recibido</span>;
       case "en_proceso":
-        return <span className="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-0.5 text-xs font-medium text-blue-800">En Proceso</span>;
+        return <span className="inline-flex items-center rounded-full border border-brand-200 bg-brand-50 px-2.5 py-0.5 text-xs font-medium text-brand-800">En Proceso</span>;
       case "terminado":
         return <span className="inline-flex items-center rounded-full border border-purple-200 bg-purple-50 px-2.5 py-0.5 text-xs font-medium text-purple-800">Terminado</span>;
       case "entregado":
@@ -152,7 +152,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
             setClienteSeleccionado("");
             setModalOpen(true);
           }}
-          className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-blue-700"
+          className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700"
         >
           + Nueva Orden de Servicio
         </button>
@@ -183,7 +183,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
             placeholder="Buscar por cliente, moto, placa..."
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
+            className="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-1.5 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-brand-600 focus:bg-white focus:ring-2 focus:ring-brand-100"
           />
         </div>
       </div>
@@ -243,7 +243,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                       <div className="flex items-center justify-end gap-2">
                         <Link
                           href={`/ordenes/${orden.id}`}
-                          className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-100 active:scale-[0.98]"
+                          className="rounded-lg bg-brand-50 px-3 py-1.5 text-xs font-semibold text-brand-700 transition hover:bg-brand-100 active:scale-[0.98]"
                         >
                           Ver Detalle / Trabajar →
                         </Link>
@@ -268,7 +268,6 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4">
           <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
-            <div className="h-1 w-full bg-pink-400" aria-hidden="true" />
             <div className="px-6 pt-5 pb-3">
               <h2 className="text-lg font-semibold tracking-tight text-zinc-900">
                 Nueva Orden de Servicio
@@ -296,7 +295,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                     required
                     value={clienteSeleccionado}
                     onChange={(e) => setClienteSeleccionado(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   >
                     <option value="">— Seleccionar cliente —</option>
                     {clientes.map((c) => (
@@ -316,7 +315,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                     name="moto_id"
                     required
                     disabled={!clienteSeleccionado}
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:bg-zinc-100"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 disabled:bg-zinc-100"
                   >
                     <option value="">
                       {clienteSeleccionado ? "— Seleccionar moto —" : "Primero selecciona un cliente"}
@@ -336,7 +335,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                   </label>
                   <select
                     name="empleado_asignado_id"
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   >
                     <option value="">— Sin asignar / Cualquiera —</option>
                     {empleados.map((emp) => (
@@ -353,7 +352,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                   <select
                     name="estado"
                     defaultValue="recibido"
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   >
                     <option value="recibido">Recibido</option>
                     <option value="en_proceso">En Proceso</option>
@@ -367,7 +366,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                     name="diagnostico"
                     rows={2}
                     placeholder="Ej: Cambio de aceite, sonido en motor, revisión de frenos..."
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   />
                 </div>
 
@@ -378,7 +377,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                     name="observaciones"
                     rows={2}
                     placeholder="Rayones en tanque, sin espejo izquierdo, etc."
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   />
                 </div>
 
@@ -388,7 +387,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                   <input
                     type="date"
                     name="fecha_entrega_estimada"
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   />
                 </div>
               </div>
@@ -405,7 +404,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                 <button
                   type="submit"
                   disabled={guardando}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98] disabled:opacity-60"
+                  className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
                 >
                   {guardando ? "Creando orden..." : "Crear Orden"}
                 </button>

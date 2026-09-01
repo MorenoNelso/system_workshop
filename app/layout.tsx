@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Taller de Motos",
-  description: "Sistema de gestión del taller",
+  title: "Pacho Motos",
+  description: "Sistema de gestión del taller de motos",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

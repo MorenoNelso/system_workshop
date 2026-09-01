@@ -1,7 +1,9 @@
 import Link from "next/link";
 
+import { NavMenu } from "@/components/nav/menu";
 import { logout } from "@/lib/actions/auth";
 import { requireUser } from "@/lib/auth/session";
+import { getConfiguracion } from "@/lib/actions/config";
 
 /**
  * Layout de todas las rutas autenticadas del taller.
@@ -14,6 +16,7 @@ export default async function DashboardLayout({
   children,
 }: LayoutProps<"/">) {
   const user = await requireUser();
+  const config = await getConfiguracion();
 
   const iniciales = user.nombre
     .split(" ")
@@ -27,15 +30,28 @@ export default async function DashboardLayout({
     <div className="flex min-h-dvh flex-col bg-zinc-50">
       <header className="sticky top-0 z-10 border-b border-zinc-200 bg-white/80 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-6xl items-center justify-between px-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-sm font-semibold tracking-tight text-zinc-900"
-          >
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white">
-              TM
-            </span>
-            Taller de Motos
-          </Link>
+          <div className="flex items-center gap-4">
+            <Link
+              href="/"
+              className="flex items-center gap-2 text-sm font-semibold tracking-tight text-zinc-900"
+            >
+              {config.logo_principal_url ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={config.logo_principal_url}
+                  alt={config.nombre_taller}
+                  className="h-12 w-auto"
+                />
+              ) : (
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-brand-600 text-xs font-semibold text-white">
+                  {config.nombre_taller.slice(0, 2).toUpperCase()}
+                </span>
+              )}
+              <span className="hidden sm:inline">{config.nombre_taller}</span>
+            </Link>
+
+            <NavMenu esAdmin={user.rol === "administrador"} />
+          </div>
 
           <div className="flex items-center gap-3">
             <div className="hidden text-right sm:block">
@@ -65,34 +81,6 @@ export default async function DashboardLayout({
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-        <nav className="mb-6 flex flex-wrap gap-2">
-          {[
-            { href: "/", label: "Inicio" },
-            { href: "/ordenes", label: "Órdenes de Servicio" },
-            { href: "/clientes", label: "Clientes" },
-            { href: "/motos", label: "Motos" },
-            { href: "/repuestos", label: "Repuestos" },
-            { href: "/inventario", label: "Kardex / Stock" },
-            { href: "/facturas", label: "Facturación" },
-            { href: "/categorias", label: "Categorías" },
-            { href: "/proveedores", label: "Proveedores" },
-            { href: "/empleados", label: "Empleados / Mecánicos" },
-            ...(user.rol === "administrador"
-              ? [
-                  { href: "/tasas", label: "Tasas de Cambio" },
-                  { href: "/seguridad", label: "Seguridad" },
-                ]
-              : []),
-          ].map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:border-blue-300 hover:text-blue-700"
-            >
-              {l.label}
-            </Link>
-          ))}
-        </nav>
         {children}
       </main>
     </div>

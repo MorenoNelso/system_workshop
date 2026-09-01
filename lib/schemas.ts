@@ -40,15 +40,18 @@ const optionalNullable = z.preprocess(
 /** UUID obligatorio (select). */
 const id = z.string().uuid();
 
-/** UUID opcional: cadena vacía → null. */
+/** UUID opcional: cadena vacía o ausente → null. */
 const optionalId = z.preprocess(
-  (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+  (v) =>
+    v === undefined || (typeof v === "string" && v.trim() === "")
+      ? null
+      : v,
   z.string().uuid().nullable(),
 );
 
 const optionalNumber = z.preprocess(
   (v) =>
-    typeof v === "string" && v.trim() === ""
+    v === undefined || v === null || (typeof v === "string" && v.trim() === "")
       ? null
       : Number(v),
   z.number().nullable(),
@@ -214,6 +217,39 @@ export const facturaCreateSchema = z.object({
   moneda_id: id,
 });
 
+export const facturaDirectaSchema = z
+  .object({
+    cliente_id: id,
+    moneda_id: id,
+    repuestos: z
+      .array(
+        z.object({
+          repuesto_id: id,
+          cantidad: z.coerce
+            .number({ message: "La cantidad debe ser un número entero mayor a 0." })
+            .int()
+            .min(1, "La cantidad mínima es 1."),
+        }),
+      )
+      .default([]),
+    servicios: z
+      .array(
+        z.object({
+          descripcion: text(200),
+          monto: z.coerce
+            .number({ message: "El monto es obligatorio." })
+            .min(0, "El monto no puede ser negativo."),
+          moneda_id: id,
+          empleado_id: optionalId,
+        }),
+      )
+      .default([]),
+  })
+  .refine((d) => d.repuestos.length > 0 || d.servicios.length > 0, {
+    message: "Agrega al menos un repuesto o un servicio para facturar.",
+    path: ["repuestos"],
+  });
+
 export const pagoSchema = z.object({
   factura_id: id,
   monto: z.coerce
@@ -237,5 +273,6 @@ export type OrdenDetalleManoObraInput = z.infer<typeof ordenDetalleManoObraSchem
 export type MovimientoInventarioInput = z.infer<typeof movimientoInventarioSchema>;
 export type TasaCambioInput = z.infer<typeof tasaCambioSchema>;
 export type FacturaCreateInput = z.infer<typeof facturaCreateSchema>;
+export type FacturaDirectaInput = z.infer<typeof facturaDirectaSchema>;
 export type PagoInput = z.infer<typeof pagoSchema>;
 

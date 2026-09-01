@@ -4,6 +4,7 @@ import { motoSchema, validate } from "@/lib/schemas";
 import {
   db,
   friendlyDbError,
+  runOnce,
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
@@ -23,15 +24,20 @@ export async function listMotos() {
 export async function createMoto(raw: unknown): Promise<ActionResult> {
   const parsed = validate(motoSchema, raw);
   if (!parsed.ok) return parsed;
-  const supabase = await db();
-  const { data, error } = await supabase
-    .from("motos")
-    .insert(parsed.data)
-    .select()
-    .single();
-  if (error) return { ok: false, error: friendlyDbError("crear la moto") };
-  touch(PATH);
-  return { ok: true, data };
+
+  const key = `create:motos:${JSON.stringify(parsed.data)}`;
+
+  return runOnce<ActionResult>(key, async () => {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("motos")
+      .insert(parsed.data)
+      .select("*, cliente:clientes(nombre)")
+      .single();
+    if (error) return { ok: false, error: friendlyDbError("crear la moto") };
+    touch(PATH);
+    return { ok: true, data };
+  });
 }
 
 export async function updateMoto(
@@ -45,7 +51,7 @@ export async function updateMoto(
     .from("motos")
     .update(parsed.data)
     .eq("id", id)
-    .select()
+    .select("*, cliente:clientes(nombre)")
     .single();
   if (error) return { ok: false, error: friendlyDbError("actualizar la moto") };
   touch(PATH);

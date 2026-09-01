@@ -59,7 +59,7 @@ export function VentasRango({ moneda }: Props) {
             onChange={(e) => setFechaInicio(e.target.value)}
             required
             disabled={consultando}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 disabled:opacity-60"
           />
         </div>
         <div className="flex flex-col gap-1">
@@ -73,13 +73,13 @@ export function VentasRango({ moneda }: Props) {
             onChange={(e) => setFechaFin(e.target.value)}
             required
             disabled={consultando}
-            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 disabled:opacity-60"
+            className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 disabled:opacity-60"
           />
         </div>
         <button
           type="submit"
           disabled={consultando}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-blue-700 disabled:opacity-60"
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700 disabled:opacity-60"
         >
           {consultando ? "Consultando…" : "Consultar"}
         </button>

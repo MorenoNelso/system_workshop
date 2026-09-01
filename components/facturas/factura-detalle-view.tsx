@@ -19,6 +19,8 @@ interface Props {
   monedas: MonedaRef[];
   equivalencias: { moneda: MonedaRef; total: number | null }[];
   esAdmin: boolean;
+  nombreTaller?: string;
+  logoWatermarkUrl?: string | null;
 }
 
 function EstadoBadge({ estado }: { estado: string }) {
@@ -55,6 +57,8 @@ export function FacturaDetalleView({
   monedas,
   equivalencias,
   esAdmin,
+  nombreTaller = "Pacho Motos",
+  logoWatermarkUrl = null,
 }: Props) {
   const router = useRouter();
   const [guardando, setGuardando] = useState(false);
@@ -127,7 +131,22 @@ export function FacturaDetalleView({
   const monedaSimbolo = factura.moneda?.simbolo || "$";
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="relative flex flex-col gap-6">
+      {/* Marca de agua del taller */}
+      {logoWatermarkUrl ? (
+        <div
+          className="pointer-events-none absolute inset-0 flex items-center justify-center"
+          aria-hidden="true"
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={logoWatermarkUrl}
+            alt=""
+            className="h-[60%] w-auto opacity-[0.06]"
+          />
+        </div>
+      ) : null}
+
       {/* Cabecera */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
@@ -145,7 +164,8 @@ export function FacturaDetalleView({
               <EstadoBadge estado={factura.estado_pago} />
             </div>
             <p className="text-sm text-zinc-500">
-              Emitida el{" "}
+              <span className="font-medium">{nombreTaller}</span>
+              {" · Emitida el "}
               {new Date(factura.fecha_emision).toLocaleDateString("es-ES", {
                 day: "2-digit",
                 month: "long",
@@ -196,7 +216,12 @@ export function FacturaDetalleView({
           </h3>
           <div className="mt-3 space-y-1 text-sm">
             <p className="font-medium text-zinc-900">{factura.cliente?.nombre}</p>
-            <p className="text-zinc-500">📞 {factura.cliente?.telefono}</p>
+            <p className="flex items-center gap-1.5 text-zinc-500">
+              <svg className="h-3.5 w-3.5 text-zinc-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" />
+              </svg>
+              {factura.cliente?.telefono}
+            </p>
             {factura.cliente?.email && (
               <p className="text-xs text-zinc-400">{factura.cliente.email}</p>
             )}
@@ -205,24 +230,35 @@ export function FacturaDetalleView({
 
         <div className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
           <h3 className="border-b border-zinc-100 pb-2 text-xs font-semibold uppercase tracking-wider text-zinc-500">
-            Orden de servicio
+            {factura.orden ? "Orden de servicio" : "Tipo de venta"}
           </h3>
           <div className="mt-3 space-y-1 text-sm">
-            <p className="font-medium text-zinc-900">
-              {factura.orden?.moto?.marca} {factura.orden?.moto?.modelo}
-            </p>
-            <p className="text-zinc-500">
-              Placa:{" "}
-              <span className="font-mono font-medium">
-                {factura.orden?.moto?.placa || "N/A"}
-              </span>
-            </p>
-            <Link
-              href={`/ordenes/${factura.orden_id}`}
-              className="inline-block rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
-            >
-              Ver orden →
-            </Link>
+            {factura.orden ? (
+              <>
+                <p className="font-medium text-zinc-900">
+                  {factura.orden?.moto?.marca} {factura.orden?.moto?.modelo}
+                </p>
+                <p className="text-zinc-500">
+                  Placa:{" "}
+                  <span className="font-mono font-medium">
+                    {factura.orden?.moto?.placa || "N/A"}
+                  </span>
+                </p>
+                <Link
+                  href={`/ordenes/${factura.orden_id}`}
+                  className="inline-block rounded-lg bg-brand-50 px-2.5 py-1 text-xs font-semibold text-brand-700 transition hover:bg-brand-100"
+                >
+                  Ver orden →
+                </Link>
+              </>
+            ) : (
+              <>
+                <p className="font-medium text-zinc-900">Venta directa</p>
+                <p className="text-xs text-zinc-500">
+                  Factura generada sin orden de servicio (trabajo pequeño).
+                </p>
+              </>
+            )}
           </div>
         </div>
 
@@ -371,7 +407,7 @@ export function FacturaDetalleView({
               </p>
             </div>
             <div className="border-l border-zinc-700 pl-6">
-              <p className="text-xs uppercase tracking-wider text-pink-400 font-semibold">
+              <p className="text-xs uppercase tracking-wider text-white font-semibold">
                 Total ({factura.moneda?.codigo})
               </p>
               <p className="text-2xl font-black">
@@ -464,7 +500,6 @@ export function FacturaDetalleView({
       {modalPago && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4">
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
-            <div className="h-1 w-full bg-pink-400" />
             <div className="px-6 pt-5 pb-3">
               <h3 className="text-base font-semibold text-zinc-900">
                 Registrar pago completo
@@ -483,7 +518,7 @@ export function FacturaDetalleView({
                   required
                   value={metodoPago}
                   onChange={(e) => setMetodoPago(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                 >
                   <option value="efectivo">Efectivo</option>
                   <option value="transferencia">Transferencia</option>
@@ -499,7 +534,7 @@ export function FacturaDetalleView({
                   required
                   value={monedaPagoId}
                   onChange={(e) => cambiarMonedaPago(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                 >
                   {monedas.map((m) => (
                     <option key={m.id} value={m.id}>
@@ -524,7 +559,7 @@ export function FacturaDetalleView({
                   required
                   value={montoPago}
                   onChange={(e) => setMontoPago(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                 />
                 {monedaPago && montoPago !== "" && (
                   <p className="mt-1 text-xs text-zinc-500">

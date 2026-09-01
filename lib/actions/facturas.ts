@@ -2,13 +2,14 @@
 
 import { requireRole } from "@/lib/auth/session";
 import { convertir, getTasasVigentes } from "@/lib/currency";
-import { facturaCreateSchema, pagoSchema, validate } from "@/lib/schemas";
+import { facturaCreateSchema, facturaDirectaSchema, pagoSchema, validate } from "@/lib/schemas";
 import {
   db,
   friendlyDbError,
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
+import { rateLimitFactura } from "@/lib/rate-limit";
 
 const PATH = "/facturas";
 
@@ -39,7 +40,7 @@ export interface MotoRef {
 
 export interface FacturaRow {
   id: string;
-  orden_id: string;
+  orden_id: string | null;
   cliente_id: string;
   numero_consecutivo: number;
   subtotal: number;
@@ -119,7 +120,9 @@ export async function listOrdenesFacturables(): Promise<OrdenFacturable[]> {
     .in("estado", ESTADOS_CERRADOS)
     .order("fecha_ingreso", { ascending: false });
 
-  const facturables = (ordenes ?? []).filter((o) => !o.factura);
+  const facturables = (ordenes ?? []).filter(
+    (o) => !o.factura || o.factura.length === 0,
+  );
 
   const conTotales = await Promise.all(
     facturables.map(async (o) => {
@@ -168,21 +171,41 @@ export async function getFacturaById(id: string): Promise<FacturaDetail | null> 
     .single();
   if (error || !factura) return null;
 
-  const [{ data: repuestos }, { data: manoObra }] = await Promise.all([
+  const f = factura as unknown as FacturaDetail;
+
+  let ordenRepuestos: RepuestoDetalle[] = [];
+  let ordenManoObra: ManoObraDetalle[] = [];
+
+  if (f.orden_id) {
+    const [{ data: repOrden }, { data: moOrden }] = await Promise.all([
+      supabase
+        .from("orden_detalle_repuestos")
+        .select("*, repuesto:repuestos(nombre, sku), moneda:monedas(codigo, simbolo)")
+        .eq("orden_id", f.orden_id),
+      supabase
+        .from("orden_detalle_mano_obra")
+        .select("*, empleado:empleados(nombre), moneda:monedas(codigo, simbolo)")
+        .eq("orden_id", f.orden_id),
+    ]);
+    ordenRepuestos = (repOrden ?? []) as unknown as RepuestoDetalle[];
+    ordenManoObra = (moOrden ?? []) as unknown as ManoObraDetalle[];
+  }
+
+  const [{ data: repDirecta }, { data: servDirecta }] = await Promise.all([
     supabase
-      .from("orden_detalle_repuestos")
+      .from("factura_detalle_repuestos")
       .select("*, repuesto:repuestos(nombre, sku), moneda:monedas(codigo, simbolo)")
-      .eq("orden_id", factura.orden_id),
+      .eq("factura_id", id),
     supabase
-      .from("orden_detalle_mano_obra")
+      .from("factura_detalle_servicios")
       .select("*, empleado:empleados(nombre), moneda:monedas(codigo, simbolo)")
-      .eq("orden_id", factura.orden_id),
+      .eq("factura_id", id),
   ]);
 
   return {
-    ...(factura as unknown as FacturaDetail),
-    repuestos: (repuestos ?? []) as unknown as RepuestoDetalle[],
-    mano_obra: (manoObra ?? []) as unknown as ManoObraDetalle[],
+    ...f,
+    repuestos: [...ordenRepuestos, ...((repDirecta ?? []) as unknown as RepuestoDetalle[])],
+    mano_obra: [...ordenManoObra, ...((servDirecta ?? []) as unknown as ManoObraDetalle[])],
   };
 }
 
@@ -195,7 +218,11 @@ export async function getFacturaById(id: string): Promise<FacturaDetail | null> 
  * - `numero_consecutivo` lo genera la BD (serial).
  */
 export async function createFactura(raw: unknown): Promise<ActionResult> {
-  await requireRole("administrador");
+  const user = await requireRole("administrador");
+
+  if (!rateLimitFactura(user.id)) {
+    return { ok: false, error: "Demasiadas facturas creadas en poco tiempo. Espera unos minutos e intenta de nuevo." };
+  }
 
   const parsed = validate(facturaCreateSchema, raw);
   if (!parsed.ok) return parsed;
@@ -218,7 +245,7 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
       error: "Solo se pueden facturar órdenes terminadas o entregadas.",
     };
   }
-  if (orden.factura) {
+  if (Array.isArray(orden.factura) ? orden.factura.length > 0 : Boolean(orden.factura)) {
     return { ok: false, error: "Esta orden ya tiene una factura asociada." };
   }
 
@@ -301,6 +328,196 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
   touch(PATH);
   touch("/ordenes");
   return { ok: true, data };
+}
+
+/**
+ * Crea una factura directa (venta rápida) SIN orden de servicio.
+ * Solo `administrador`. Para trabajos pequeños (cambio de aceite, bujía, etc.)
+ * donde no se necesita el flujo completo de orden.
+ *
+ * - Descuenta stock de repuestos y registra movimientos de inventario.
+ * - Convierte todos los montos a la moneda elegida con la tasa vigente.
+ * - Guarda total y tasa_aplicada como SNAPSHOT.
+ */
+export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> {
+  const user = await requireRole("administrador");
+
+  if (!rateLimitFactura(user.id)) {
+    return { ok: false, error: "Demasiadas facturas creadas en poco tiempo. Espera unos minutos e intenta de nuevo." };
+  }
+
+  const parsed = validate(facturaDirectaSchema, raw);
+  if (!parsed.ok) return parsed;
+
+  const { cliente_id, moneda_id, repuestos, servicios } = parsed.data;
+  const supabase = await db();
+
+  if (repuestos.length === 0 && servicios.length === 0) {
+    return {
+      ok: false,
+      error: "Agrega al menos un repuesto o un servicio para facturar.",
+    };
+  }
+
+  const tasas = await getTasasVigentes(supabase);
+
+  const lineas: { moneda_id: string; amount: number }[] = [];
+  const repuestosData: {
+    repuesto_id: string;
+    cantidad: number;
+    precio_unitario_aplicado: number;
+    moneda_id: string;
+  }[] = [];
+
+  for (const r of repuestos) {
+    const { data: rep, error: repErr } = await supabase
+      .from("repuestos")
+      .select("id, nombre, stock_actual, precio_venta, moneda_id, activo")
+      .eq("id", r.repuesto_id)
+      .single();
+
+    if (repErr || !rep) {
+      return { ok: false, error: "Uno de los repuestos seleccionados no existe." };
+    }
+    if (!rep.activo) {
+      return { ok: false, error: `El repuesto '${rep.nombre}' está inactivo.` };
+    }
+    if (rep.stock_actual < r.cantidad) {
+      return {
+        ok: false,
+        error: `Stock insuficiente para '${rep.nombre}'. Disponible: ${rep.stock_actual}, solicitado: ${r.cantidad}.`,
+      };
+    }
+
+    const amount = rep.precio_venta * r.cantidad;
+    lineas.push({ moneda_id: rep.moneda_id, amount });
+
+    repuestosData.push({
+      repuesto_id: r.repuesto_id,
+      cantidad: r.cantidad,
+      precio_unitario_aplicado: rep.precio_venta,
+      moneda_id: rep.moneda_id,
+    });
+  }
+
+  const serviciosData: {
+    empleado_id: string | null;
+    descripcion: string;
+    monto: number;
+    moneda_id: string;
+    porcentaje_comision_aplicado: number | null;
+    comision_calculada: number | null;
+  }[] = [];
+
+  for (const s of servicios) {
+    let porcentajeComision: number | null = s.empleado_id ? null : null;
+
+    if (s.empleado_id) {
+      const { data: emp } = await supabase
+        .from("empleados")
+        .select("porcentaje_comision")
+        .eq("id", s.empleado_id)
+        .single();
+      porcentajeComision = emp?.porcentaje_comision ?? null;
+    }
+
+    const comisionCalculada =
+      porcentajeComision !== null
+        ? Number(((s.monto * porcentajeComision) / 100).toFixed(2))
+        : null;
+
+    lineas.push({ moneda_id: s.moneda_id, amount: s.monto });
+
+    serviciosData.push({
+      empleado_id: s.empleado_id,
+      descripcion: s.descripcion,
+      monto: s.monto,
+      moneda_id: s.moneda_id,
+      porcentaje_comision_aplicado: porcentajeComision,
+      comision_calculada: comisionCalculada,
+    });
+  }
+
+  let total = 0;
+  for (const linea of lineas) {
+    const conv = convertir(linea.amount, linea.moneda_id, moneda_id, tasas);
+    if (conv === null) {
+      return {
+        ok: false,
+        error:
+          "No hay tasa de cambio vigente para convertir los montos a la moneda de la factura. Regístrala primero en Tasas de Cambio.",
+      };
+    }
+    total += conv;
+  }
+
+  const monedasOrigen = [...new Set(lineas.map((l) => l.moneda_id))];
+  let tasaAplicada: number | null = null;
+  if (monedasOrigen.length === 1 && monedasOrigen[0] !== moneda_id) {
+    tasaAplicada = convertir(1, monedasOrigen[0], moneda_id, tasas);
+  }
+
+  const totalFinal = Number(total.toFixed(2));
+
+  const { data: factura, error: insErr } = await supabase
+    .from("facturas")
+    .insert({
+      orden_id: null,
+      cliente_id,
+      subtotal: totalFinal,
+      total: totalFinal,
+      moneda_id,
+      tasa_aplicada: tasaAplicada,
+      estado_pago: "pendiente",
+    })
+    .select("*, moneda:monedas(codigo, simbolo, nombre)")
+    .single();
+
+  if (insErr || !factura) {
+    return {
+      ok: false,
+      error: "No se pudo crear la factura. Verifica los datos e intenta de nuevo.",
+    };
+  }
+
+  const facturaId = (factura as { id: string }).id;
+
+  if (repuestosData.length > 0) {
+    const { error: repDetErr } = await supabase
+      .from("factura_detalle_repuestos")
+      .insert(
+        repuestosData.map((r) => ({ ...r, factura_id: facturaId })),
+      );
+    if (repDetErr) {
+      return { ok: false, error: friendlyDbError("guardar los repuestos de la factura") };
+    }
+
+    for (const r of repuestosData) {
+      await supabase.from("movimientos_inventario").insert({
+        repuesto_id: r.repuesto_id,
+        tipo: "salida",
+        cantidad: r.cantidad,
+        motivo: "Venta directa (sin orden de servicio)",
+        usuario_id: user.id,
+      });
+    }
+  }
+
+  if (serviciosData.length > 0) {
+    const { error: servDetErr } = await supabase
+      .from("factura_detalle_servicios")
+      .insert(
+        serviciosData.map((s) => ({ ...s, factura_id: facturaId })),
+      );
+    if (servDetErr) {
+      return { ok: false, error: friendlyDbError("guardar los servicios de la factura") };
+    }
+  }
+
+  touch(PATH);
+  touch("/repuestos");
+  touch("/inventario");
+  return { ok: true, data: factura };
 }
 
 /**

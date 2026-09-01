@@ -27,7 +27,7 @@ interface Props {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-100";
+  "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition focus:border-brand-600 focus:ring-2 focus:ring-brand-100";
 
 export function TasasView({ tasas, monedas }: Props) {
   const router = useRouter();
@@ -167,7 +167,7 @@ export function TasasView({ tasas, monedas }: Props) {
             <button
               type="submit"
               disabled={guardando}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 active:scale-[0.98] disabled:opacity-60"
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
             >
               {guardando ? "Guardando..." : "Guardar tasa"}
             </button>

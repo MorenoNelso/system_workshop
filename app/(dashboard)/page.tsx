@@ -12,7 +12,7 @@ import {
   getVentasSemanales,
 } from "@/lib/actions/dashboard";
 
-export const metadata: Metadata = { title: "Dashboard — Taller" };
+export const metadata: Metadata = { title: "Dashboard — Pacho Motos" };
 
 function fmt(n: number, simbolo: string): string {
   return `${simbolo} ${n.toLocaleString("es-CO", { maximumFractionDigits: 0 })}`;
@@ -21,21 +21,23 @@ function fmt(n: number, simbolo: string): string {
 function PipelineBlock({
   label,
   count,
-  stripe,
+  dot,
 }: {
   label: string;
   count: number;
-  stripe: string;
+  dot: string;
 }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-      <div className={`h-1 w-full ${stripe}`} aria-hidden="true" />
-      <div className="p-5">
-        <p className="text-3xl font-black tabular-nums text-zinc-900">{count}</p>
-        <p className="mt-1 text-xs font-medium uppercase tracking-wider text-zinc-500">
+    <div className="flex items-center justify-between rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+        <span className="text-xs font-medium uppercase tracking-wider text-zinc-500">
           {label}
-        </p>
+        </span>
       </div>
+      <span className="text-2xl font-black tabular-nums text-zinc-900">
+        {count}
+      </span>
     </div>
   );
 }
@@ -64,7 +66,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Encabezado compacto */}
+      {/* Encabezado */}
       <div className="flex items-end justify-between">
         <div>
           <h1 className="text-xl font-semibold tracking-tight text-zinc-900">
@@ -74,7 +76,7 @@ export default async function DashboardPage() {
         </div>
         <Link
           href="/ordenes"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-blue-700"
+          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700"
         >
           + Nueva orden
         </Link>
@@ -121,64 +123,92 @@ export default async function DashboardPage() {
         </section>
       )}
 
-      {/* Pipeline de órdenes activas */}
-      <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-zinc-900">
-            Órdenes activas
-          </h2>
-          <span className="text-xs text-zinc-500">
-            {totalActivas} en curso · {resumen.entregado} entregadas
-          </span>
-        </div>
-        <div className="grid grid-cols-3 gap-3 sm:gap-4">
-          <PipelineBlock
-            label="Recibido"
-            count={resumen.recibido}
-            stripe="bg-amber-400"
-          />
-          <PipelineBlock
-            label="En proceso"
-            count={resumen.en_proceso}
-            stripe="bg-blue-400"
-          />
-          <PipelineBlock
-            label="Terminado"
-            count={resumen.terminado}
-            stripe="bg-purple-400"
-          />
-        </div>
-      </section>
-
-      {/* Gráfico de ventas semanales (solo admin) */}
-      {esAdmin && ventasSemanales && (
-        <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 shadow-sm">
-          <div className="h-1 w-full bg-pink-400" aria-hidden="true" />
-          <div className="p-5 sm:p-6">
-            <div className="mb-4 flex items-end justify-between">
-              <div>
-                <h2 className="text-sm font-semibold text-white">
-                  Ventas semanales
-                </h2>
-                <p className="text-xs text-zinc-400">
-                  Últimas 12 semanas · {ventasSemanales.moneda.codigo}
-                </p>
+      {/* Gráfico + Pipeline (admin) | Pipeline solo (colaborador) */}
+      {esAdmin && ventasSemanales ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+          {/* Gráfico de ventas — col-span-8 */}
+          <section className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900 shadow-sm lg:col-span-8">
+            <div className="p-5 sm:p-6">
+              <div className="mb-4 flex items-end justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">
+                    Ventas semanales
+                  </h2>
+                  <p className="text-xs text-zinc-400">
+                    Últimas 12 semanas · {ventasSemanales.moneda.codigo}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs uppercase tracking-wider text-zinc-500">
+                    Total del período
+                  </p>
+                  <p className="text-lg font-black tabular-nums text-white">
+                    {fmt(
+                      ventasSemanales.semanas.reduce((a, s) => a + s.total, 0),
+                      ventasSemanales.moneda.simbolo,
+                    )}
+                  </p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-xs uppercase tracking-wider text-zinc-500">
-                  Total del período
-                </p>
-                <p className="text-lg font-black tabular-nums text-white">
-                  {fmt(
-                    ventasSemanales.semanas.reduce((a, s) => a + s.total, 0),
-                    ventasSemanales.moneda.simbolo,
-                  )}
-                </p>
-              </div>
+              <VentasChart
+                semanas={ventasSemanales.semanas}
+                simbolo={ventasSemanales.moneda.simbolo}
+              />
             </div>
-            <VentasChart
-              semanas={ventasSemanales.semanas}
-              simbolo={ventasSemanales.moneda.simbolo}
+          </section>
+
+          {/* Pipeline de órdenes — col-span-4 */}
+          <section className="flex flex-col gap-3 lg:col-span-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-zinc-900">
+                Órdenes activas
+              </h2>
+              <span className="text-xs text-zinc-500">
+                {totalActivas} en curso · {resumen.entregado} entregadas
+              </span>
+            </div>
+            <PipelineBlock
+              label="Recibido"
+              count={resumen.recibido}
+              dot="bg-amber-400"
+            />
+            <PipelineBlock
+              label="En proceso"
+              count={resumen.en_proceso}
+              dot="bg-brand-500"
+            />
+            <PipelineBlock
+              label="Terminado"
+              count={resumen.terminado}
+              dot="bg-purple-400"
+            />
+          </section>
+        </div>
+      ) : (
+        <section className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-zinc-900">
+              Órdenes activas
+            </h2>
+            <span className="text-xs text-zinc-500">
+              {totalActivas} en curso · {resumen.entregado} entregadas
+            </span>
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:gap-4">
+            <PipelineBlock
+              label="Recibido"
+              count={resumen.recibido}
+              dot="bg-amber-400"
+            />
+            <PipelineBlock
+              label="En proceso"
+              count={resumen.en_proceso}
+              dot="bg-brand-500"
+            />
+            <PipelineBlock
+              label="Terminado"
+              count={resumen.terminado}
+              dot="bg-purple-400"
             />
           </div>
         </section>
@@ -189,7 +219,6 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
           {/* Ingresos por mecánico */}
           <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-            <div className="h-1 w-full bg-pink-400" aria-hidden="true" />
             <div className="p-5">
               <h2 className="text-sm font-semibold text-zinc-900">
                 Ingresos por mecánico
@@ -239,7 +268,6 @@ export default async function DashboardPage() {
 
           {/* Ventas por rango de fechas */}
           <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-            <div className="h-1 w-full bg-pink-400" aria-hidden="true" />
             <div className="p-5">
               <h2 className="text-sm font-semibold text-zinc-900">
                 Ventas por período
@@ -258,7 +286,6 @@ export default async function DashboardPage() {
       ) : (
         /* Mi producción (colaborador) */
         <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
-          <div className="h-1 w-full bg-pink-400" aria-hidden="true" />
           <div className="p-5">
             <h2 className="text-sm font-semibold text-zinc-900">
               Mi producción

@@ -2,6 +2,7 @@ import "server-only";
 
 import { cache } from "react";
 import { redirect } from "next/navigation";
+import * as Sentry from "@sentry/nextjs";
 
 import { createClient } from "@/lib/supabase/server";
 import type { Rol } from "@/types/database.types";
@@ -75,6 +76,13 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
       dbData: data,
       dbError: error,
     });
+    Sentry.captureMessage(
+      "Usuario autenticado sin registro en public.usuarios (posible RLS o registro incompleto)",
+      {
+        level: "warning",
+        extra: { authUserId: user.id, authUserEmail: user.email },
+      },
+    );
     await supabase.auth.signOut();
     return null;
   }

@@ -4,6 +4,7 @@ import { clienteSchema, validate } from "@/lib/schemas";
 import {
   db,
   friendlyDbError,
+  runOnce,
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
@@ -23,15 +24,20 @@ export async function listClientes() {
 export async function createCliente(raw: unknown): Promise<ActionResult> {
   const parsed = validate(clienteSchema, raw);
   if (!parsed.ok) return parsed;
-  const supabase = await db();
-  const { data, error } = await supabase
-    .from("clientes")
-    .insert(parsed.data)
-    .select()
-    .single();
-  if (error) return { ok: false, error: friendlyDbError("crear el cliente") };
-  touch(PATH);
-  return { ok: true, data };
+
+  const key = `create:clientes:${JSON.stringify(parsed.data)}`;
+
+  return runOnce<ActionResult>(key, async () => {
+    const supabase = await db();
+    const { data, error } = await supabase
+      .from("clientes")
+      .insert(parsed.data)
+      .select()
+      .single();
+    if (error) return { ok: false, error: friendlyDbError("crear el cliente") };
+    touch(PATH);
+    return { ok: true, data };
+  });
 }
 
 export async function updateCliente(

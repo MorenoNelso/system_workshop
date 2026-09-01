@@ -53,7 +53,7 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
   - `lib/actions/` — `clientes.ts`, `facturas.ts`, `inventario.ts`, `ordenes.ts` (estructura base)
   - `types/database.types.ts`
   - `middleware.ts` en raíz
-- **Fases 2–5 implementadas**: CRUD completo (clientes, motos, categorías, proveedores, repuestos, empleados), órdenes de servicio con snapshots de precio/comisión y descuento de stock, facturación digital desde órdenes cerradas (sin PDF), pagos completos (sin abonos) y tasas de cambio manuales (`/tasas`, solo admin). Conversión en pantalla con tasa vigente sin recalcular montos congelados. Dashboard con alertas de stock bajo, pipeline de órdenes activas, gráfico de ventas semanales (puro CSS, sin librería), ingresos por mecánico y reporte de ventas por rango — con permisos por rol (`colaborador` ve solo su propia producción, no reportes financieros).
+- **Fases 2–5 implementadas**: CRUD completo (clientes, motos, categorías, proveedores, repuestos, empleados), órdenes de servicio con snapshots de precio/comisión y descuento de stock, facturación digital desde órdenes cerradas (sin PDF), pagos completos (sin abonos) y tasas de cambio manuales (`/tasas`, solo admin). Conversión en pantalla con tasa vigente sin recalcular montos congelados. Dashboard con alertas de stock bajo, pipeline de órdenes activas, gráfico de ventas semanales (línea SVG con gradiente cian→azul y glow neon, sin librería), ingresos por mecánico y reporte de ventas por rango — con permisos por rol (`colaborador` ve solo su propia producción, no reportes financieros). Navegación por **menú desplegable** en el header (`components/nav/menu.tsx`) con grupos Taller / Catálogo / Administración.
 
 ---
 
@@ -146,6 +146,6 @@ SENTRY_DSN=
 
 ## Paleta de colores
 
-Base: **azul, gris, negro y blanco**. Rosa como **acento discreto** únicamente (borde superior de tarjetas, indicador "nuevo", detalle de logo) — nunca en botones primarios ni textos de error/éxito.
+Base: **azul, gris, negro y blanco**. Sin rosa ni emojis en toda la UI. El único acento fuera de la paleta base es el **cian eléctrico** (`#22d3ee`) del gráfico de ventas del dashboard (gradiente cian→azul con glow sutil), aprobado como excepción puntual. Sin emojis en ningún texto de la interfaz — usar iconos SVG inline cuando se necesite un pictograma.
 
 Logo: campo `configuracion_sistema.logo_url` apunta a Supabase Storage. Si el archivo no existe aún, usar placeholder con iniciales del taller en la paleta de colores.
