@@ -248,11 +248,13 @@ export function FacturasView({
     setGuardandoCliente(true);
     setErrorCliente(null);
 
-    // Si offline, generar un temp UUID para que la factura pueda referenciarlo
-    const tempId = !navigator.onLine ? crypto.randomUUID() : undefined;
+    // Siempre generar un temp UUID: online se usa el real de Supabase,
+    // offline se usa el temp y se pasa a la factura.
+    // navigator.onLine puede ser true aunque la red esté caída.
+    const tempId = crypto.randomUUID();
 
     const res = await executeOrEnqueue("createCliente", {
-      ...(tempId ? { id: tempId } : {}),
+      id: tempId,
       nombre: nuevoNombre,
       telefono: nuevoTelefono,
       direccion: nuevoDireccion || null,
@@ -264,7 +266,7 @@ export function FacturasView({
       return;
     }
 
-    if ("offline" in res && res.offline && tempId) {
+    if ("offline" in res && res.offline) {
       // Offline: agregar el cliente temporal a la lista y seleccionarlo
       const nuevo = { id: tempId, nombre: nuevoNombre, telefono: nuevoTelefono };
       setClientesState((prev) => [...prev, nuevo]);
@@ -273,12 +275,7 @@ export function FacturasView({
       return;
     }
 
-    if ("offline" in res && res.offline) {
-      setErrorCliente("Sin conexión. El cliente se guardará cuando vuelva internet.");
-      setCreandoCliente(false);
-      return;
-    }
-
+    // Online: usar el ID real de Supabase (puede diferir del temp)
     const nuevo = "data" in res ? (res.data as { id: string; nombre: string; telefono: string }) : null;
     if (nuevo) {
       setClientesState((prev) => [...prev, nuevo]);
