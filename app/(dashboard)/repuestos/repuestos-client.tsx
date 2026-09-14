@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import { CrudClient } from "@/components/crud/crud-client";
 import type { CrudConfig } from "@/components/crud/types";
 import {
-  createRepuesto,
   updateRepuesto,
   deleteRepuesto,
 } from "@/lib/actions/repuestos";
 import { registrarMovimiento } from "@/lib/actions/inventario";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 
 interface Props {
   initialRows: Record<string, unknown>[];
@@ -126,7 +126,15 @@ export function RepuestosClient({
         "precio_venta",
       ],
       searchFields: ["nombre", "medida", "compatible_con", "calidad"],
-      create: { label: "crear", run: (_id, r) => createRepuesto(r) },
+      create: {
+        label: "crear",
+        run: async (_id, r) => {
+          const res = await executeOrEnqueue("createRepuesto", r);
+          if (!res.ok) return { ok: false, error: res.error };
+          if ("data" in res && res.data) return { ok: true, data: res.data };
+          return { ok: true };
+        },
+      },
       update: { label: "editar", run: (id, r) => updateRepuesto(id, r) },
       delete: { label: "eliminar", run: (id) => deleteRepuesto(id) },
       rowActions: [

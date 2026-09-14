@@ -11,8 +11,12 @@ import {
 const ACTION_LABELS: Record<string, string> = {
   createFactura: "Factura (desde orden)",
   createFacturaDirecta: "Venta directa",
-  createCliente: "Cliente",
   registrarPago: "Pago",
+  createCliente: "Cliente",
+  createMoto: "Moto",
+  createRepuesto: "Repuesto",
+  createProveedor: "Proveedor",
+  createCategoria: "Categoría",
 };
 
 function formatTime(ts: number): string {

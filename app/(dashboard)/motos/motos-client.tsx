@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import { CrudClient } from "@/components/crud/crud-client";
 import type { CrudConfig } from "@/components/crud/types";
-import { createMoto, updateMoto, deleteMoto } from "@/lib/actions/motos";
+import { updateMoto, deleteMoto } from "@/lib/actions/motos";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 
 interface Props {
   initialRows: Record<string, unknown>[];
@@ -37,7 +38,15 @@ export function MotosClient({ initialRows, clientes }: Props) {
         { name: "notas", label: "Notas", type: "textarea" },
       ],
       columns: ["marca", "modelo", "placa", "cliente_id", "anio"],
-      create: { label: "crear", run: (_id, r) => createMoto(r) },
+      create: {
+        label: "crear",
+        run: async (_id, r) => {
+          const res = await executeOrEnqueue("createMoto", r);
+          if (!res.ok) return { ok: false, error: res.error };
+          if ("data" in res && res.data) return { ok: true, data: res.data };
+          return { ok: true };
+        },
+      },
       update: { label: "editar", run: (id, r) => updateMoto(id, r) },
       delete: { label: "eliminar", run: (id) => deleteMoto(id) },
     }),

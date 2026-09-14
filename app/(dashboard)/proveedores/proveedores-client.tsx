@@ -3,10 +3,10 @@
 import { CrudClient } from "@/components/crud/crud-client";
 import type { CrudConfig } from "@/components/crud/types";
 import {
-  createProveedor,
   updateProveedor,
   deleteProveedor,
 } from "@/lib/actions/proveedores";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 
 const config: CrudConfig = {
   title: "Proveedores",
@@ -20,7 +20,15 @@ const config: CrudConfig = {
     { name: "direccion", label: "Dirección", type: "textarea" },
   ],
   columns: ["nombre", "contacto", "telefono", "email"],
-  create: { label: "crear", run: (_id, r) => createProveedor(r) },
+  create: {
+    label: "crear",
+    run: async (_id, r) => {
+      const res = await executeOrEnqueue("createProveedor", r);
+      if (!res.ok) return { ok: false, error: res.error };
+      if ("data" in res && res.data) return { ok: true, data: res.data };
+      return { ok: true };
+    },
+  },
   update: { label: "editar", run: (id, r) => updateProveedor(id, r) },
   delete: { label: "eliminar", run: (id) => deleteProveedor(id) },
 };
