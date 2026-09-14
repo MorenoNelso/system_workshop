@@ -23,6 +23,7 @@ export const metadata: Metadata = {
     apple: "/icon-192x192.png",
   },
   other: {
+    "mobile-web-app-capable": "yes",
     "apple-mobile-web-app-capable": "yes",
     "apple-mobile-web-app-status-bar-style": "black-translucent",
     "apple-mobile-web-app-title": "Pacho Motos",
