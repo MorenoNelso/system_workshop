@@ -37,19 +37,27 @@ export const getConfiguracion = cache(
       const supabase = await createClient();
       const { data } = await supabase
         .from("configuracion_sistema")
-        .select("nombre_taller, logo_url")
+        .select("nombre_taller, logo_url, logo_principal_url, logo_login_url, logo_watermark_url")
         .limit(1)
         .maybeSingle();
 
       const row = data as
-        | { nombre_taller: string; logo_url: string | null }
+        | {
+            nombre_taller: string;
+            logo_url: string | null;
+            logo_principal_url: string | null;
+            logo_login_url: string | null;
+            logo_watermark_url: string | null;
+          }
         | null;
 
       if (row?.nombre_taller) {
         return {
-          ...DEFAULT_URLS,
           nombre_taller: row.nombre_taller,
           logo_url: row.logo_url ?? DEFAULT_URLS.logo_url,
+          logo_principal_url: row.logo_principal_url ?? DEFAULT_URLS.logo_principal_url,
+          logo_login_url: row.logo_login_url ?? DEFAULT_URLS.logo_login_url,
+          logo_watermark_url: row.logo_watermark_url ?? DEFAULT_URLS.logo_watermark_url,
         };
       }
     } catch {

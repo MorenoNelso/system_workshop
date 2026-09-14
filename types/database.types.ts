@@ -578,6 +578,57 @@ export interface Database {
         }>;
         Relationships: [];
       };
+      configuracion_sistema: {
+        Row: Row<{
+          nombre_taller: string;
+          logo_url: string | null;
+          logo_principal_url: string | null;
+          logo_login_url: string | null;
+          logo_watermark_url: string | null;
+        }>;
+        Insert: Insert<{
+          nombre_taller: string;
+          logo_url?: string | null;
+          logo_principal_url?: string | null;
+          logo_login_url?: string | null;
+          logo_watermark_url?: string | null;
+        }>;
+        Update: Update<{
+          nombre_taller?: string;
+          logo_url?: string | null;
+          logo_principal_url?: string | null;
+          logo_login_url?: string | null;
+          logo_watermark_url?: string | null;
+        }>;
+        Relationships: [];
+      };
+      logs_auditoria: {
+        Row: Row<{
+          usuario_id: string | null;
+          tabla_afectada: string;
+          accion: string;
+          datos_anteriores: Record<string, unknown> | null;
+          datos_nuevos: Record<string, unknown> | null;
+          fecha: string;
+        }>;
+        Insert: Insert<{
+          usuario_id?: string | null;
+          tabla_afectada: string;
+          accion: string;
+          datos_anteriores?: Record<string, unknown> | null;
+          datos_nuevos?: Record<string, unknown> | null;
+          fecha?: string;
+        }>;
+        Update: Update<{
+          usuario_id?: string | null;
+          tabla_afectada?: string;
+          accion?: string;
+          datos_anteriores?: Record<string, unknown> | null;
+          datos_nuevos?: Record<string, unknown> | null;
+          fecha?: string;
+        }>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

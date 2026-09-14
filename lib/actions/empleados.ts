@@ -12,15 +12,31 @@ import {
 
 const PATH = "/empleados";
 
+interface EmpleadoCleanData {
+  usuario_id?: string;
+  nombre: string;
+  documento?: string;
+  telefono?: string;
+  tipo_vinculacion?: "salario_fijo" | "comision" | "mixto";
+  salario_base?: number;
+  moneda_salario_id?: string;
+  porcentaje_comision?: number;
+  activo: boolean;
+}
+
 /** Convierte null a undefined para compatibilidad con Supabase types */
-function cleanEmpleadoData(data: Record<string, unknown>) {
-  const out = { ...data };
-  if (out.tipo_vinculacion === null) out.tipo_vinculacion = undefined;
-  if (out.salario_base === null) out.salario_base = undefined;
-  if (out.moneda_salario_id === null) out.moneda_salario_id = undefined;
-  if (out.porcentaje_comision === null) out.porcentaje_comision = undefined;
-  if (out.usuario_id === null) out.usuario_id = undefined;
-  return out as Record<string, never>;
+function cleanEmpleadoData(data: Record<string, unknown>): EmpleadoCleanData {
+  return {
+    nombre: data.nombre as string,
+    activo: (data.activo as boolean) ?? true,
+    ...(data.usuario_id != null ? { usuario_id: data.usuario_id as string } : {}),
+    ...(data.documento != null ? { documento: data.documento as string } : {}),
+    ...(data.telefono != null ? { telefono: data.telefono as string } : {}),
+    ...(data.tipo_vinculacion != null ? { tipo_vinculacion: data.tipo_vinculacion as "salario_fijo" | "comision" | "mixto" } : {}),
+    ...(data.salario_base != null ? { salario_base: Number(data.salario_base) } : {}),
+    ...(data.moneda_salario_id != null ? { moneda_salario_id: data.moneda_salario_id as string } : {}),
+    ...(data.porcentaje_comision != null ? { porcentaje_comision: Number(data.porcentaje_comision) } : {}),
+  };
 }
 
 export async function listEmpleados() {

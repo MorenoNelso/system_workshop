@@ -493,7 +493,7 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
   }[] = [];
 
   for (const s of servicios) {
-    let porcentajeComision: number | null = s.empleado_id ? null : null;
+    let porcentajeComision: number | null = null;
 
     if (s.empleado_id) {
       const { data: emp } = await supabase
