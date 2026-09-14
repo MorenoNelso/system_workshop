@@ -5,7 +5,6 @@ import { requireEliminar } from "@/lib/auth/permisos";
 import {
   db,
   friendlyDbError,
-  runOnce,
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
@@ -26,25 +25,32 @@ export async function createCategoria(raw: unknown): Promise<ActionResult> {
   const parsed = validate(categoriaSchema, raw);
   if (!parsed.ok) return parsed;
 
-  const key = `create:categorias:${JSON.stringify(parsed.data)}`;
+  const supabase = await db();
 
-  return runOnce<ActionResult>(key, async () => {
-    const supabase = await db();
-    const { data, error } = await supabase
+  // Idempotente: si ya existe una categoría con ese nombre, retornarla
+  const { data: existing } = await supabase
+    .from("categorias_repuesto")
+    .select("id")
+    .ilike("nombre", parsed.data.nombre.trim())
+    .maybeSingle();
+
+  if (existing) {
+    const { data } = await supabase
       .from("categorias_repuesto")
-      .insert(parsed.data)
-      .select()
+      .select("*")
+      .eq("id", existing.id)
       .single();
-    if (error)
-      return {
-        ok: false,
-        error: error.code === "23505"
-          ? "Ya existe una categoría con ese nombre."
-          : friendlyDbError("crear la categoría"),
-      };
-    touch(PATH);
     return { ok: true, data };
-  });
+  }
+
+  const { data, error } = await supabase
+    .from("categorias_repuesto")
+    .insert(parsed.data)
+    .select()
+    .single();
+  if (error) return { ok: false, error: friendlyDbError("crear la categoría") };
+  touch(PATH);
+  return { ok: true, data };
 }
 
 export async function updateCategoria(

@@ -62,10 +62,9 @@ export function OfflineQueue() {
       const c = await getPendingCount();
       if (!mounted) return;
       setCount(c);
-      if (expanded) {
-        const list = await getPendingAndFailedActions();
-        if (mounted) setActions(list);
-      }
+      // Siempre cargar la lista de acciones (no solo cuando expanded)
+      const list = await getPendingAndFailedActions();
+      if (mounted) setActions(list);
     }
 
     load();

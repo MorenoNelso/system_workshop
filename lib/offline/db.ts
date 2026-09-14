@@ -241,7 +241,9 @@ export async function cleanupSyncedActions(): Promise<number> {
 }
 
 /**
- * Retorna el conteo de acciones pendientes.
+ * Retorna el conteo de acciones pendientes o en proceso.
+ * Incluye "pending" y "processing" para que la UI no desaparezca
+ * mientras el sync está corriendo.
  */
 export async function getPendingCount(): Promise<number> {
   const db = await openDB();
@@ -249,15 +251,25 @@ export async function getPendingCount(): Promise<number> {
     const tx = db.transaction(STORE_NAME, "readonly");
     const store = tx.objectStore(STORE_NAME);
     const index = store.index("status");
-    const request = index.count(IDBKeyRange.only("pending"));
-    request.onsuccess = () => {
-      db.close();
-      resolve(request.result);
-    };
-    request.onerror = () => {
-      db.close();
-      reject(request.error);
-    };
+
+    let count = 0;
+    let pending = 2; // dos count requests
+
+    function done() {
+      pending--;
+      if (pending === 0) {
+        db.close();
+        resolve(count);
+      }
+    }
+
+    const r1 = index.count(IDBKeyRange.only("pending"));
+    r1.onsuccess = () => { count += r1.result; done(); };
+    r1.onerror = () => { db.close(); reject(r1.error); };
+
+    const r2 = index.count(IDBKeyRange.only("processing"));
+    r2.onsuccess = () => { count += r2.result; done(); };
+    r2.onerror = () => { db.close(); reject(r2.error); };
   });
 }
 
