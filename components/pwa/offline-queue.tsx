@@ -73,9 +73,10 @@ export function OfflineQueue() {
       getPendingCount().then((c) => {
         if (c > 0) syncPendingActions().then((result) => {
           if (mounted) load();
-          // Si se sincronizaron acciones, recargar para reflejar datos reales
+          // Si se sincronizaron acciones, recargar INMEDIATAMENTE
+          // para que los Server Components reflejen datos reales
           if (result.synced > 0) {
-            setTimeout(() => window.location.reload(), 1000);
+            window.location.reload();
           }
         });
       });

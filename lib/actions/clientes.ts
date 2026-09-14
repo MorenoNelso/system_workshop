@@ -5,7 +5,6 @@ import { requireEliminar } from "@/lib/auth/permisos";
 import {
   db,
   friendlyDbError,
-  runOnce,
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
@@ -26,19 +25,34 @@ export async function createCliente(raw: unknown): Promise<ActionResult> {
   const parsed = validate(clienteSchema, raw);
   if (!parsed.ok) return parsed;
 
-  const key = `create:clientes:${JSON.stringify(parsed.data)}`;
+  const supabase = await db();
 
-  return runOnce<ActionResult>(key, async () => {
-    const supabase = await db();
-    const { data, error } = await supabase
+  // Prevenir duplicados: verificar si ya existe un cliente con mismo nombre y teléfono
+  const { data: existing } = await supabase
+    .from("clientes")
+    .select("id")
+    .eq("nombre", parsed.data.nombre)
+    .eq("telefono", parsed.data.telefono)
+    .maybeSingle();
+
+  if (existing) {
+    // Ya existe — retornar el existente como si fuera nuevo (idempotente)
+    const { data } = await supabase
       .from("clientes")
-      .insert(parsed.data)
-      .select()
+      .select("*")
+      .eq("id", existing.id)
       .single();
-    if (error) return { ok: false, error: friendlyDbError("crear el cliente") };
-    touch(PATH);
     return { ok: true, data };
-  });
+  }
+
+  const { data, error } = await supabase
+    .from("clientes")
+    .insert(parsed.data)
+    .select()
+    .single();
+  if (error) return { ok: false, error: friendlyDbError("crear el cliente") };
+  touch(PATH);
+  return { ok: true, data };
 }
 
 export async function updateCliente(
