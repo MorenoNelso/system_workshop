@@ -52,9 +52,11 @@ export async function createCliente(raw: unknown): Promise<ActionResult> {
     return { ok: true, data };
   }
 
+  const { id, ...insertData } = parsed.data;
   const { data, error } = await supabase
     .from("clientes")
-    .insert(parsed.data)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .insert(id ? { id, ...insertData } as any : insertData)
     .select()
     .single();
   if (error) return { ok: false, error: friendlyDbError("crear el cliente") };
@@ -69,9 +71,10 @@ export async function updateCliente(
   const parsed = validate(clienteSchema, raw);
   if (!parsed.ok) return parsed;
   const supabase = await db();
+  const { id: _id, ...updateData } = parsed.data;
   const { data, error } = await supabase
     .from("clientes")
-    .update(parsed.data)
+    .update(updateData)
     .eq("id", id)
     .select()
     .single();

@@ -248,7 +248,11 @@ export function FacturasView({
     setGuardandoCliente(true);
     setErrorCliente(null);
 
+    // Si offline, generar un temp UUID para que la factura pueda referenciarlo
+    const tempId = !navigator.onLine ? crypto.randomUUID() : undefined;
+
     const res = await executeOrEnqueue("createCliente", {
+      ...(tempId ? { id: tempId } : {}),
       nombre: nuevoNombre,
       telefono: nuevoTelefono,
       direccion: nuevoDireccion || null,
@@ -257,6 +261,15 @@ export function FacturasView({
 
     if (!res.ok) {
       setErrorCliente(res.error ?? "Error desconocido");
+      return;
+    }
+
+    if ("offline" in res && res.offline && tempId) {
+      // Offline: agregar el cliente temporal a la lista y seleccionarlo
+      const nuevo = { id: tempId, nombre: nuevoNombre, telefono: nuevoTelefono };
+      setClientesState((prev) => [...prev, nuevo]);
+      setClienteRapidaId(tempId);
+      setCreandoCliente(false);
       return;
     }
 

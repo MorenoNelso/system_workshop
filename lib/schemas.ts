@@ -60,6 +60,7 @@ const optionalNumber = z.preprocess(
 /* ---------- Schemas por módulo ---------- */
 
 export const clienteSchema = z.object({
+  id: optionalId,
   nombre: text(100),
   telefono: z.preprocess(sanitizePhone, z.string().min(1).max(20)),
   email: z.preprocess(
