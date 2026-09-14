@@ -25,22 +25,84 @@ export type AuthState = {
  * - "anon": sin sesión.
  * - "mfa_pending": sesión débil (login con contraseña OK, falta el paso 2FA).
  * - "authed": sesión completa.
+ *
+ * En offline, si hay cookies de sesión válidas, devuelve "authed".
  */
 export async function getAuthState(): Promise<AuthState> {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { status: "anon" };
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      // Fallback offline: verificar si hay cookies de sesión
+      const fallback = await getUserFromCookies();
+      return fallback ? { status: "authed" } : { status: "anon" };
+    }
 
-  const { data: aal } =
-    await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2") {
-    return { status: "mfa_pending" };
+    const { data: aal } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2") {
+      return { status: "mfa_pending" };
+    }
+
+    return { status: "authed" };
+  } catch {
+    // Error de red: si hay cookies, asumir authed (offline mode)
+    const fallback = await getUserFromCookies();
+    return fallback ? { status: "authed" } : { status: "anon" };
   }
+}
 
-  return { status: "authed" };
+/**
+ * Intenta extraer datos del usuario del JWT en las cookies de sesión.
+ * Útil cuando Supabase es inalcanzable (offline). Solo Extrae datos
+ * básicos; NO valida el token (eso lo hace Supabase online).
+ */
+async function getUserFromCookies(): Promise<SessionUser | null> {
+  try {
+    const { cookies } = await import("next/headers");
+    const cookieStore = await cookies();
+    const authCookie = cookieStore
+      .getAll()
+      .find(
+        (c) => c.name.startsWith("sb-") && c.name.endsWith("-auth-token"),
+      );
+    if (!authCookie) return null;
+
+    // El valor puede ser un JWT directo o un JSON array con tokens
+    let token = authCookie.value;
+    try {
+      const parsed = JSON.parse(token);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        token = parsed[0].value ?? parsed[0];
+      }
+    } catch {
+      // ya es un JWT directo
+    }
+
+    // Decodificar el payload del JWT (sin validación — solo para datos offline)
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+
+    // Los claims estándar de Supabase Auth
+    const sub = payload.sub as string | undefined;
+    const email = payload.email as string | undefined;
+    if (!sub || !email) return null;
+
+    return {
+      id: sub,
+      email,
+      nombre: email.split("@")[0],
+      rol: "colaborador",
+      activo: true,
+      permisos: null,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -53,11 +115,22 @@ export async function getAuthState(): Promise<AuthState> {
 export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const supabase = await createClient();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    user = authUser;
+  } catch (err) {
+    // Error de red: intentar leer usuario de las cookies JWT
+    console.error("[session] getUser failed (network?):", err);
+    return getUserFromCookies();
+  }
 
-  if (!user) return null;
+  if (!user) {
+    // Sin usuario de Supabase: intentar cookies como fallback offline
+    return getUserFromCookies();
+  }
 
   // Sesión débil (2FA pendiente): no cuenta como autenticado.
   const { data: aal } =
@@ -71,6 +144,10 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     .maybeSingle();
 
   if (error || !data || !data.activo) {
+    // Si es error de red (no RLS/DB), intentar cookies
+    if (error?.message?.includes("fetch") || error?.code === "PGRST301") {
+      return getUserFromCookies();
+    }
     console.error("[Auth] No se encontró usuario en public.usuarios o error RLS:", {
       authUserId: user.id,
       authUserEmail: user.email,

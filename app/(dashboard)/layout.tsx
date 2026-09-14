@@ -21,7 +21,20 @@ export default async function DashboardLayout({
   children,
 }: LayoutProps<"/">) {
   const user = await requireUser();
-  const config = await getConfiguracion();
+
+  let config;
+  try {
+    config = await getConfiguracion();
+  } catch {
+    // Fallback offline: configuración por defecto
+    config = {
+      nombre_taller: "Pacho Motos",
+      logo_url: null,
+      logo_principal_url: null,
+      logo_login_url: null,
+      logo_watermark_url: null,
+    };
+  }
 
   const iniciales = user.nombre
     .split(" ")

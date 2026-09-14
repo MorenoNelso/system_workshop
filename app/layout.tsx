@@ -22,6 +22,11 @@ export const metadata: Metadata = {
     icon: "/icon-512x512.png",
     apple: "/icon-192x192.png",
   },
+  other: {
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
+    "apple-mobile-web-app-title": "Pacho Motos",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -31,7 +36,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
-        <SerwistProvider swUrl="/serwist/sw.js" disable={process.env.NODE_ENV === "development"}>
+        <SerwistProvider swUrl="/serwist/sw.js" disable={process.env.NEXT_PUBLIC_ENABLE_SW !== "true"}>
           <PwaOfflineBanner />
           {children}
         </SerwistProvider>

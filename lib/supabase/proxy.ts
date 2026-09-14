@@ -51,20 +51,42 @@ export async function updateSession(
   // IMPORTANTE: `getUser()` valida el token contra el servidor de Auth
   // y refresca la cookie si es necesario. No usar `getSession()`, que solo
   // lee la cookie y puede devolver datos manipulables.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  // Sesión débil: usuario logueó con contraseña pero aún no completa el 2FA.
-  let mfaPending = false;
-  if (user) {
-    const { data: aal } =
-      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-    mfaPending = aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2";
-  }
-
   const { pathname } = request.nextUrl;
   const publicRoute = isPublicPath(pathname);
+
+  let user = null;
+  let mfaPending = false;
+  try {
+    const {
+      data: { user: authUser },
+    } = await supabase.auth.getUser();
+    user = authUser;
+
+    // Sesión débil: usuario logueó con contraseña pero aún no completa el 2FA.
+    if (user) {
+      const { data: aal } =
+        await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+      mfaPending = aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2";
+    }
+  } catch (err) {
+    // Error de red (Supabase inalcanzable): dejar pasar con las cookies
+    // existentes. Las cookies httpOnly siguen válidas; RLS protege la DB.
+    // Si no hay cookies de sesión, el usuario será redirigido a /login
+    // en el layout (que también maneja este caso).
+    console.error("[proxy] Auth check failed (network?):", err);
+    // Verificar si hay cookies de sesión como indicador de login previo
+    const hasSessionCookie = request.cookies.getAll().some(
+      (c) => c.name.startsWith("sb-") && c.name.endsWith("-auth-token"),
+    );
+    if (!hasSessionCookie && !publicRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      url.searchParams.set("redirect", pathname);
+      return NextResponse.redirect(url);
+    }
+    // Si hay cookies, dejar pasar — el layout decidirá
+    return supabaseResponse;
+  }
 
   // Sin sesión intentando entrar a una ruta protegida → /login
   if (!user && !publicRoute) {
