@@ -71,7 +71,13 @@ export function OfflineQueue() {
       load();
       // Auto-sincronizar al reconectar
       getPendingCount().then((c) => {
-        if (c > 0) syncPendingActions().then(() => { if (mounted) load(); });
+        if (c > 0) syncPendingActions().then((result) => {
+          if (mounted) load();
+          // Si se sincronizaron acciones, recargar para reflejar datos reales
+          if (result.synced > 0) {
+            setTimeout(() => window.location.reload(), 1000);
+          }
+        });
       });
     }
     window.addEventListener("online", handleOnline);
@@ -106,6 +112,13 @@ export function OfflineQueue() {
       setActions(list);
     }
     setTimeout(() => setLastResult(null), 5000);
+
+    // Si se sincronizaron acciones, recargar la página para que los
+    // Server Components reflejen los datos reales de la DB
+    // (reemplaza filas provisorias con datos reales).
+    if (result.synced > 0) {
+      window.location.reload();
+    }
   }
 
   async function toggleExpanded() {

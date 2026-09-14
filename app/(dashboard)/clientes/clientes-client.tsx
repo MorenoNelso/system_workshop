@@ -25,6 +25,8 @@ const config: CrudConfig = {
     run: async (_id, r) => {
       const res = await executeOrEnqueue("createCliente", r);
       if (!res.ok) return { ok: false, error: res.error };
+      // Si se creó online, retornar los datos para que la UI reemplace la fila provisoria
+      if ("data" in res && res.data) return { ok: true, data: res.data };
       return { ok: true };
     },
   },
