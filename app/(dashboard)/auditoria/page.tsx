@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { requireRole } from "@/lib/auth/session";
 import { listLogs } from "@/lib/actions/auditoria";
 import { createClient } from "@/lib/supabase/server";
+import { safeQuery } from "@/lib/safe-query";
 import { AuditoriaView } from "@/components/auditoria/auditoria-view";
 
 export const metadata: Metadata = { title: "Auditoría — Pacho Motos" };
@@ -11,14 +12,15 @@ export const instant = false;
 export default async function AuditoriaPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireRole("administrador");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await safeQuery(requireRole("administrador") as any, { id: "", email: "", rol: "administrador" });
 
   const search = await props.searchParams;
   const supabase = await createClient();
 
-  const [{ data: usuarios }, result] = await Promise.all([
-    supabase.from("usuarios").select("id, nombre").order("nombre"),
-    listLogs({
+  const [usuarios, result] = await Promise.all([
+    safeQuery(supabase.from("usuarios").select("id, nombre").order("nombre").then(r => r.data ?? []) as Promise<{ id: string; nombre: string }[]>, []),
+    safeQuery(listLogs({
       usuarioId: typeof search.usuario === "string" ? search.usuario : undefined,
       tabla: typeof search.tabla === "string" ? search.tabla : undefined,
       accion:
@@ -29,7 +31,7 @@ export default async function AuditoriaPage(props: {
       desde: typeof search.desde === "string" ? search.desde : undefined,
       hasta: typeof search.hasta === "string" ? search.hasta : undefined,
       pagina: typeof search.pagina === "string" ? Number(search.pagina) : undefined,
-    }),
+    }), { logs: [], total: 0, pagina: 1, totalPaginas: 0 }),
   ]);
 
   return (

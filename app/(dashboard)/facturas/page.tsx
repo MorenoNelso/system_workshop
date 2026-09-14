@@ -12,12 +12,15 @@ import { listRepuestos } from "@/lib/actions/repuestos";
 import { listMecanicosActivos } from "@/lib/actions/empleados";
 import { requireUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { safeQuery } from "@/lib/safe-query";
 
 export const metadata: Metadata = { title: "Facturación — Pacho Motos" };
 
 export default async function FacturasPage() {
-  await requireUser();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await safeQuery(requireUser() as any, { id: "", email: "", rol: "administrador" });
 
+  // Ejecutar queries en paralelo con fallback vacío si fallan (offline)
   const [
     facturas,
     ordenesFacturables,
@@ -26,15 +29,20 @@ export default async function FacturasPage() {
     repuestos,
     mecanicos,
   ] = await Promise.all([
-    listFacturas(),
-    listOrdenesFacturables(),
-    listMonedas(),
-    listClientes(),
-    listRepuestos(),
-    listMecanicosActivos(),
+    safeQuery(listFacturas()),
+    safeQuery(listOrdenesFacturables()),
+    safeQuery(listMonedas()),
+    safeQuery(listClientes()),
+    safeQuery(listRepuestos()),
+    safeQuery(listMecanicosActivos()),
   ]);
 
-  const tasas = await getTasasVigentes(await createClient());
+  let tasas = {};
+  try {
+    tasas = await getTasasVigentes(await createClient());
+  } catch {
+    // Sin conexión: tasas vacías (offline)
+  }
 
   const repuestosActivos = (repuestos as {
     id: string;

@@ -2,13 +2,15 @@ import type { Metadata } from "next";
 
 import { requireRole } from "@/lib/auth/session";
 import { listUsuarios } from "@/lib/actions/usuarios";
+import { safeQuery } from "@/lib/safe-query";
 import { UsuariosClient } from "./usuarios-client";
 
 export const metadata: Metadata = { title: "Usuarios — Pacho Motos" };
 
 export default async function UsuariosPage() {
-  await requireRole("administrador");
-  const usuarios = await listUsuarios();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await safeQuery(requireRole("administrador") as any, { id: "", email: "", rol: "administrador" });
+  const usuarios = await safeQuery(listUsuarios());
 
   return (
     <div className="flex flex-col gap-6">

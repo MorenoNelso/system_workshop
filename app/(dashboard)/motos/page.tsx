@@ -2,12 +2,13 @@ import type { Metadata } from "next";
 
 import { listMotos } from "@/lib/actions/motos";
 import { listClientes } from "@/lib/actions/clientes";
+import { safeQuery } from "@/lib/safe-query";
 import { MotosClient } from "./motos-client";
 
 export const metadata: Metadata = { title: "Motos — Pacho Motos" };
 
 export default async function MotosPage() {
-  const [motos, clientes] = await Promise.all([listMotos(), listClientes()]);
+  const [motos, clientes] = await Promise.all([safeQuery(listMotos()), safeQuery(listClientes())]);
 
   const clientOptions = clientes.map((c) => ({
     id: c.id,

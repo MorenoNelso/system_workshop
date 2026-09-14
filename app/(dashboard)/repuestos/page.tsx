@@ -4,6 +4,7 @@ import { listRepuestos } from "@/lib/actions/repuestos";
 import { listCategorias } from "@/lib/actions/categorias";
 import { listProveedores } from "@/lib/actions/proveedores";
 import { db } from "@/lib/actions/_crud-helpers";
+import { safeQuery } from "@/lib/safe-query";
 import { RepuestosClient } from "./repuestos-client";
 
 export const metadata: Metadata = { title: "Repuestos — Pacho Motos" };
@@ -21,10 +22,10 @@ async function listMonedas() {
 
 export default async function RepuestosPage() {
   const [repuestos, categorias, proveedores, monedas] = await Promise.all([
-    listRepuestos(),
-    listCategorias(),
-    listProveedores(),
-    listMonedas(),
+    safeQuery(listRepuestos()),
+    safeQuery(listCategorias()),
+    safeQuery(listProveedores()),
+    safeQuery(listMonedas()),
   ]);
 
   const catOptions = categorias.map((c) => ({ id: c.id, nombre: c.nombre }));

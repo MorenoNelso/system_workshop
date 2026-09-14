@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 
 import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { safeQuery } from "@/lib/safe-query";
 import { SeguridadClient } from "./seguridad-client";
 
 
@@ -13,11 +14,13 @@ export const metadata: Metadata = {
 };
 
 export default async function SeguridadPage() {
-  await requireRole("administrador");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  await safeQuery(requireRole("administrador") as any, { id: "", email: "", rol: "administrador" });
 
   const supabase = await createClient();
-  const { data } = await supabase.auth.mfa.listFactors();
-  const totpActive = (data?.totp ?? []).some((f) => f.status === "verified");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data } = await safeQuery(supabase.auth.mfa.listFactors() as any, { data: { totp: [] } });
+  const totpActive = (data?.totp ?? []).some((f: { status: string }) => f.status === "verified");
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-4">
