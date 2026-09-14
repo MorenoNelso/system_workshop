@@ -72,11 +72,8 @@ export function OfflineQueue() {
     
     function handleOnline() {
       load();
-      // Auto-sincronizar al reconectar (sin reload — el usuario
-      // puede hacer clic en "Sincronizar" si quiere refrescar)
-      getPendingCount().then((c) => {
-        if (c > 0) syncPendingActions().then(() => { if (mounted) load(); });
-      });
+      // Solo actualizar el conteo al reconectar — el sync es MANUAL
+      // para que el usuario revise qué va a enviar antes de sincronizar
     }
     window.addEventListener("online", handleOnline);
 
