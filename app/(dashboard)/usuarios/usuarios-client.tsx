@@ -37,6 +37,13 @@ export function UsuariosClient({ usuarios: initial }: { usuarios: UsuarioRow[] }
     FormData
   >(crearUsuario, undefined);
 
+  // El último administrador ACTIVO no se puede degradar ni desactivar.
+  const adminsActivos = usuarios.filter(
+    (u) => u.rol === "administrador" && u.activo,
+  ).length;
+  const esUltimoAdmin = (u: UsuarioRow) =>
+    u.rol === "administrador" && u.activo && adminsActivos <= 1;
+
   async function handleToggle(u: UsuarioRow) {
     setBusy(u.id);
     setError(null);
@@ -233,22 +240,32 @@ export function UsuariosClient({ usuarios: initial }: { usuarios: UsuarioRow[] }
                       <div className="flex items-center justify-end gap-2">
                         <button
                           type="button"
-                          disabled={busy === u.id}
+                          disabled={busy === u.id || esUltimoAdmin(u)}
                           onClick={() =>
                             handleRol(
                               u,
                               u.rol === "administrador" ? "colaborador" : "administrador",
                             )
                           }
-                          className="rounded-md px-2 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 active:scale-[0.98] disabled:opacity-50"
+                          title={
+                            esUltimoAdmin(u)
+                              ? "No se puede degradar al último administrador"
+                              : undefined
+                          }
+                          className="rounded-md px-2 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 active:scale-[0.98] disabled:opacity-40 disabled:hover:bg-transparent"
                         >
                           {u.rol === "administrador" ? "Hacer colaborador" : "Hacer admin"}
                         </button>
                         <button
                           type="button"
-                          disabled={busy === u.id}
+                          disabled={busy === u.id || esUltimoAdmin(u)}
                           onClick={() => handleToggle(u)}
-                          className={`rounded-md px-2 py-1 text-xs font-medium transition active:scale-[0.98] disabled:opacity-50 ${
+                          title={
+                            esUltimoAdmin(u)
+                              ? "No se puede desactivar al último administrador"
+                              : undefined
+                          }
+                          className={`rounded-md px-2 py-1 text-xs font-medium transition active:scale-[0.98] disabled:opacity-40 ${
                             u.activo
                               ? "text-red-600 hover:bg-red-50"
                               : "text-emerald-600 hover:bg-emerald-50"

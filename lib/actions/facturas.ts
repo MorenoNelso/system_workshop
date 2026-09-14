@@ -2,6 +2,12 @@
 
 import { requireRole } from "@/lib/auth/session";
 import { convertir, getTasasVigentes } from "@/lib/currency";
+import {
+  esErrorFacturaDuplicada,
+  ESTADOS_FACTURABLES,
+  ordenEsFacturable,
+  ordenYaTieneFactura,
+} from "@/lib/facturas-utils";
 import { facturaCreateSchema, facturaDirectaSchema, pagoSchema, validate } from "@/lib/schemas";
 import {
   db,
@@ -12,8 +18,6 @@ import {
 import { rateLimitFactura } from "@/lib/rate-limit";
 
 const PATH = "/facturas";
-
-const ESTADOS_CERRADOS = ["terminado", "entregado"] as const;
 
 /* ------------------------------------------------------------------ */
 /* Formas de los datos que consumen los componentes                    */
@@ -66,16 +70,28 @@ export interface RepuestoDetalle {
   id: string;
   cantidad: number;
   precio_unitario_aplicado: number;
+  precio_costo_aplicado: number | null;
   moneda: Pick<MonedaRef, "codigo" | "simbolo"> | null;
-  repuesto: { nombre: string; sku: string | null } | null;
+  repuesto: {
+    nombre: string;
+    sku: string | null;
+    calidad: string | null;
+    medida: string | null;
+    compatible_con: string | null;
+  } | null;
 }
 
 export interface ManoObraDetalle {
   id: string;
   descripcion: string;
   monto: number;
+  porcentaje_comision_aplicado: number | null;
+  comision_calculada: number | null;
+  ayudante_id: string | null;
+  ayudante_monto: number | null;
   moneda: Pick<MonedaRef, "codigo" | "simbolo"> | null;
   empleado: { nombre: string } | null;
+  ayudante: { nombre: string } | null;
 }
 
 export interface PagoRow {
@@ -117,44 +133,74 @@ export async function listOrdenesFacturables(): Promise<OrdenFacturable[]> {
     .select(
       "*, cliente:clientes(nombre, telefono), moto:motos(marca, modelo, placa), factura:facturas(id)",
     )
-    .in("estado", ESTADOS_CERRADOS)
+    .in("estado", ESTADOS_FACTURABLES)
     .order("fecha_ingreso", { ascending: false });
 
   const facturables = (ordenes ?? []).filter(
     (o) => !o.factura || o.factura.length === 0,
   );
 
-  const conTotales = await Promise.all(
-    facturables.map(async (o) => {
-      const [{ data: repuestos }, { data: manoObra }] = await Promise.all([
-        supabase
+  // Batch: 2 queries en vez de 2N
+  const ordenIds = facturables.map((o) => o.id);
+
+  const [repData, moData] = await Promise.all([
+    ordenIds.length > 0
+      ? supabase
           .from("orden_detalle_repuestos")
-          .select("cantidad, precio_unitario_aplicado, moneda_id")
-          .eq("orden_id", o.id),
-        supabase
+          .select("orden_id, cantidad, precio_unitario_aplicado, moneda_id")
+          .in("orden_id", ordenIds)
+      : { data: [] as Record<string, unknown>[] },
+    ordenIds.length > 0
+      ? supabase
           .from("orden_detalle_mano_obra")
-          .select("monto, moneda_id")
-          .eq("orden_id", o.id),
-      ]);
+          .select("orden_id, monto, moneda_id")
+          .in("orden_id", ordenIds)
+      : { data: [] as Record<string, unknown>[] },
+  ]);
 
-      const porMoneda: Record<string, number> = {};
-      for (const r of repuestos ?? []) {
-        porMoneda[r.moneda_id] =
-          (porMoneda[r.moneda_id] ?? 0) +
-          r.cantidad * Number(r.precio_unitario_aplicado);
-      }
-      for (const m of manoObra ?? []) {
-        porMoneda[m.moneda_id] = (porMoneda[m.moneda_id] ?? 0) + Number(m.monto);
-      }
+  // Indexar por orden_id
+  const repMap: Record<string, { cantidad: number; precio: number; moneda_id: string }[]> = {};
+  for (const r of repData.data ?? []) {
+    const oid = r.orden_id as string;
+    if (!repMap[oid]) repMap[oid] = [];
+    repMap[oid].push({
+      cantidad: r.cantidad as number,
+      precio: Number(r.precio_unitario_aplicado),
+      moneda_id: r.moneda_id as string,
+    });
+  }
 
-      return {
-        ...o,
-        subtotales_por_moneda: porMoneda,
-        linea_repuestos: (repuestos ?? []).length,
-        linea_mano_obra: (manoObra ?? []).length,
-      };
-    }),
-  );
+  const moMap: Record<string, { monto: number; moneda_id: string }[]> = {};
+  for (const m of moData.data ?? []) {
+    const oid = m.orden_id as string;
+    if (!moMap[oid]) moMap[oid] = [];
+    moMap[oid].push({
+      monto: Number(m.monto),
+      moneda_id: m.moneda_id as string,
+    });
+  }
+
+  const conTotales = facturables.map((o) => {
+    const repuestos = repMap[o.id] ?? [];
+    const manoObra = moMap[o.id] ?? [];
+
+    const porMoneda: Record<string, number> = {};
+    for (const r of repuestos) {
+      porMoneda[r.moneda_id] =
+        (porMoneda[r.moneda_id] ?? 0) +
+        r.cantidad * r.precio;
+    }
+    for (const m of manoObra) {
+      porMoneda[m.moneda_id] = (porMoneda[m.moneda_id] ?? 0) + m.monto;
+    }
+
+    return {
+      ...o,
+      subtotales_por_moneda: porMoneda,
+      linea_repuestos: repuestos.length,
+      linea_mano_obra: manoObra.length,
+    };
+  });
 
   return conTotales as unknown as OrdenFacturable[];
 }
@@ -180,11 +226,11 @@ export async function getFacturaById(id: string): Promise<FacturaDetail | null> 
     const [{ data: repOrden }, { data: moOrden }] = await Promise.all([
       supabase
         .from("orden_detalle_repuestos")
-        .select("*, repuesto:repuestos(nombre, sku), moneda:monedas(codigo, simbolo)")
+        .select("*, repuesto:repuestos(nombre, sku, calidad, medida, compatible_con), moneda:monedas(codigo, simbolo)")
         .eq("orden_id", f.orden_id),
       supabase
         .from("orden_detalle_mano_obra")
-        .select("*, empleado:empleados(nombre), moneda:monedas(codigo, simbolo)")
+        .select("*, empleado:empleados(nombre, porcentaje_comision), moneda:monedas(codigo, simbolo)")
         .eq("orden_id", f.orden_id),
     ]);
     ordenRepuestos = (repOrden ?? []) as unknown as RepuestoDetalle[];
@@ -194,18 +240,44 @@ export async function getFacturaById(id: string): Promise<FacturaDetail | null> 
   const [{ data: repDirecta }, { data: servDirecta }] = await Promise.all([
     supabase
       .from("factura_detalle_repuestos")
-      .select("*, repuesto:repuestos(nombre, sku), moneda:monedas(codigo, simbolo)")
+      .select("*, repuesto:repuestos(nombre, sku, calidad, medida, compatible_con), moneda:monedas(codigo, simbolo)")
       .eq("factura_id", id),
     supabase
       .from("factura_detalle_servicios")
-      .select("*, empleado:empleados(nombre), moneda:monedas(codigo, simbolo)")
+      .select("*, empleado:empleados(nombre, porcentaje_comision), moneda:monedas(codigo, simbolo)")
       .eq("factura_id", id),
   ]);
+
+  // Resolver nombres de ayudantes
+  const allManoObra = [...ordenManoObra, ...((servDirecta ?? []) as unknown as ManoObraDetalle[])];
+  const ayudanteIds = [...new Set(
+    allManoObra
+      .map((m) => m.ayudante_id)
+      .filter((aid): aid is string => !!aid),
+  )];
+  const ayudantesMap: Record<string, string> = {};
+  if (ayudanteIds.length > 0) {
+    const { data: ayudantes } = await supabase
+      .from("empleados")
+      .select("id, nombre")
+      .in("id", ayudanteIds);
+    for (const a of ayudantes ?? []) {
+      ayudantesMap[a.id] = a.nombre;
+    }
+  }
+
+  const resolveManoObra = (items: ManoObraDetalle[]) =>
+    items.map((m) => ({
+      ...m,
+      ayudante: m.ayudante_id
+        ? { nombre: ayudantesMap[m.ayudante_id] ?? null }
+        : null,
+    }));
 
   return {
     ...f,
     repuestos: [...ordenRepuestos, ...((repDirecta ?? []) as unknown as RepuestoDetalle[])],
-    mano_obra: [...ordenManoObra, ...((servDirecta ?? []) as unknown as ManoObraDetalle[])],
+    mano_obra: resolveManoObra([...ordenManoObra, ...((servDirecta ?? []) as unknown as ManoObraDetalle[])]),
   };
 }
 
@@ -218,9 +290,9 @@ export async function getFacturaById(id: string): Promise<FacturaDetail | null> 
  * - `numero_consecutivo` lo genera la BD (serial).
  */
 export async function createFactura(raw: unknown): Promise<ActionResult> {
-  const user = await requireRole("administrador");
+  const user = await requireRole("administrador", "colaborador");
 
-  if (!rateLimitFactura(user.id)) {
+  if (!(await rateLimitFactura(user.id))) {
     return { ok: false, error: "Demasiadas facturas creadas en poco tiempo. Espera unos minutos e intenta de nuevo." };
   }
 
@@ -239,13 +311,13 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
   if (ordErr || !orden) {
     return { ok: false, error: "La orden de servicio no existe." };
   }
-  if (!ESTADOS_CERRADOS.some((s) => s === orden.estado)) {
+  if (!ordenEsFacturable(orden.estado)) {
     return {
       ok: false,
       error: "Solo se pueden facturar órdenes terminadas o entregadas.",
     };
   }
-  if (Array.isArray(orden.factura) ? orden.factura.length > 0 : Boolean(orden.factura)) {
+  if (ordenYaTieneFactura(orden.factura)) {
     return { ok: false, error: "Esta orden ya tiene una factura asociada." };
   }
 
@@ -318,6 +390,15 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
     .single();
 
   if (insErr) {
+    // 23505 = unique violation: el índice `idx_facturas_orden_unica` ya
+    // impidió una segunda factura para la misma orden (carrera entre tabs).
+    if (esErrorFacturaDuplicada(insErr)) {
+      return {
+        ok: false,
+        error:
+          "Esta orden ya tiene una factura asociada. No se puede facturar dos veces la misma orden.",
+      };
+    }
     return {
       ok: false,
       error:
@@ -340,9 +421,9 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
  * - Guarda total y tasa_aplicada como SNAPSHOT.
  */
 export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> {
-  const user = await requireRole("administrador");
+  const user = await requireRole("administrador", "colaborador");
 
-  if (!rateLimitFactura(user.id)) {
+  if (!(await rateLimitFactura(user.id))) {
     return { ok: false, error: "Demasiadas facturas creadas en poco tiempo. Espera unos minutos e intenta de nuevo." };
   }
 
@@ -366,13 +447,14 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
     repuesto_id: string;
     cantidad: number;
     precio_unitario_aplicado: number;
+    precio_costo_aplicado: number | null;
     moneda_id: string;
   }[] = [];
 
   for (const r of repuestos) {
     const { data: rep, error: repErr } = await supabase
       .from("repuestos")
-      .select("id, nombre, stock_actual, precio_venta, moneda_id, activo")
+      .select("id, nombre, stock_actual, precio_venta, precio_costo, moneda_id, activo")
       .eq("id", r.repuesto_id)
       .single();
 
@@ -396,6 +478,7 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
       repuesto_id: r.repuesto_id,
       cantidad: r.cantidad,
       precio_unitario_aplicado: rep.precio_venta,
+      precio_costo_aplicado: rep.precio_costo ?? null,
       moneda_id: rep.moneda_id,
     });
   }
@@ -421,10 +504,15 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
       porcentajeComision = emp?.porcentaje_comision ?? null;
     }
 
-    const comisionCalculada =
-      porcentajeComision !== null
-        ? Number(((s.monto * porcentajeComision) / 100).toFixed(2))
-        : null;
+    // Si se proporciona monto_a_pagar, usarlo directamente; si no, calcular desde %
+    const montoAPagar = s.monto_a_pagar ?? null;
+    let comisionCalculada: number | null = null;
+
+    if (montoAPagar !== null && montoAPagar !== undefined) {
+      comisionCalculada = montoAPagar;
+    } else if (porcentajeComision !== null) {
+      comisionCalculada = Number(((s.monto * porcentajeComision) / 100).toFixed(2));
+    }
 
     lineas.push({ moneda_id: s.moneda_id, amount: s.monto });
 
@@ -525,7 +613,7 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
  * pagado, convertido a la moneda de la factura, cubra el total congelado.
  */
 export async function registrarPago(raw: unknown): Promise<ActionResult> {
-  await requireRole("administrador");
+  await requireRole("administrador", "colaborador");
 
   const parsed = validate(pagoSchema, raw);
   if (!parsed.ok) return parsed;
@@ -593,9 +681,9 @@ export async function registrarPago(raw: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
-/** Anula una factura pendiente. Solo `administrador`. */
+/** Anula una factura pendiente. Solo `administrador` (acción sensible). */
 export async function anularFactura(id: string): Promise<ActionResult> {
-  await requireRole("administrador");
+  const user = await requireRole("administrador");
 
   const supabase = await db();
 
@@ -614,6 +702,44 @@ export async function anularFactura(id: string): Promise<ActionResult> {
     return { ok: false, error: "No se puede anular una factura pagada." };
   }
 
+  // Devolver stock de repuestos de VENTA DIRECTA (si los hay).
+  // Las facturas desde orden no descuentan stock aquí (ya se descontó al
+  // agregar repuestos a la orden), así que `factura_detalle_repuestos`
+  // estará vacío en ese caso y no habrá doble devolución.
+  const { data: repuestos, error: repErr } = await supabase
+    .from("factura_detalle_repuestos")
+    .select("repuesto_id, cantidad")
+    .eq("factura_id", id);
+
+  if (repErr) {
+    return {
+      ok: false,
+      error: "No se pudo verificar el inventario de la factura. Intenta de nuevo.",
+    };
+  }
+
+  if (repuestos && repuestos.length > 0) {
+    for (const r of repuestos) {
+      const { error: movErr } = await supabase
+        .from("movimientos_inventario")
+        .insert({
+          repuesto_id: r.repuesto_id,
+          tipo: "entrada",
+          cantidad: r.cantidad,
+          motivo: "Devolución por anulación de factura",
+          usuario_id: user.id,
+        });
+      if (movErr) {
+        // No anular sin devolver el stock: abortamos para no perder inventario.
+        return {
+          ok: false,
+          error:
+            "No se pudo devolver el stock al inventario. La factura no fue anulada; intenta de nuevo.",
+        };
+      }
+    }
+  }
+
   const { error: upErr } = await supabase
     .from("facturas")
     .update({ estado_pago: "anulada" })
@@ -624,5 +750,7 @@ export async function anularFactura(id: string): Promise<ActionResult> {
 
   touch(PATH);
   touch(`${PATH}/${id}`);
+  touch("/repuestos");
+  touch("/inventario");
   return { ok: true };
 }

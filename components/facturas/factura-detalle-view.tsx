@@ -178,16 +178,18 @@ export function FacturaDetalleView({
         </div>
 
         {/* Acciones por estado */}
-        {esAdmin && factura.estado_pago === "pendiente" && (
+        {factura.estado_pago === "pendiente" && (
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAnular}
-              disabled={guardando}
-              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:opacity-60"
-            >
-              Anular
-            </button>
+            {esAdmin && (
+              <button
+                type="button"
+                onClick={handleAnular}
+                disabled={guardando}
+                className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:opacity-60"
+              >
+                Anular
+              </button>
+            )}
             <button
               type="button"
               onClick={() => {
@@ -309,8 +311,15 @@ export function FacturaDetalleView({
               ) : (
                 factura.repuestos.map((item: RepuestoDetalle) => (
                   <tr key={item.id} className="transition hover:bg-zinc-50">
-                    <td className="px-4 py-2.5 font-medium text-zinc-800">
-                      {item.repuesto?.nombre}
+                    <td className="px-4 py-2.5">
+                      <div className="font-medium text-zinc-800">
+                        {item.repuesto?.nombre}
+                      </div>
+                      <div className="text-xs text-zinc-400">
+                        {item.repuesto?.calidad === "original" ? "Original" : item.repuesto?.calidad === "generica" ? "Genérica" : ""}
+                        {item.repuesto?.medida ? ` · ${item.repuesto.medida}` : ""}
+                        {item.repuesto?.compatible_con ? ` · ${item.repuesto.compatible_con}` : ""}
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 text-center text-zinc-700">
                       {item.cantidad}
@@ -354,13 +363,16 @@ export function FacturaDetalleView({
               <tr>
                 <th className="px-4 py-2.5 font-medium">Mecánico</th>
                 <th className="px-4 py-2.5 font-medium">Descripción</th>
+                <th className="px-4 py-2.5 font-medium text-right">% Comisión</th>
+                <th className="px-4 py-2.5 font-medium text-right">Comisión Mecánico</th>
+                <th className="px-4 py-2.5 font-medium">Ayudante</th>
                 <th className="px-4 py-2.5 font-medium text-right">Monto</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100">
               {(factura.mano_obra ?? []).length === 0 ? (
                 <tr>
-                  <td colSpan={3} className="px-4 py-6 text-center text-xs text-zinc-400">
+                  <td colSpan={6} className="px-4 py-6 text-center text-xs text-zinc-400">
                     Sin mano de obra.
                   </td>
                 </tr>
@@ -371,6 +383,17 @@ export function FacturaDetalleView({
                       {item.empleado?.nombre}
                     </td>
                     <td className="px-4 py-2.5 text-zinc-700">{item.descripcion}</td>
+                    <td className="px-4 py-2.5 text-right text-xs text-zinc-500">
+                      {item.porcentaje_comision_aplicado !== null ? `${item.porcentaje_comision_aplicado}%` : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-xs font-semibold text-emerald-700">
+                      {item.comision_calculada !== null ? `${item.moneda?.simbolo || "$"} ${Number(item.comision_calculada).toFixed(2)}` : "—"}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-zinc-600">
+                      {item.ayudante?.nombre ? (
+                        <span>{item.ayudante.nombre} — {item.moneda?.simbolo || "$"} {Number(item.ayudante_monto).toFixed(2)}</span>
+                      ) : "—"}
+                    </td>
                     <td className="px-4 py-2.5 text-right font-semibold text-zinc-900">
                       {item.moneda?.simbolo || "$"} {Number(item.monto).toFixed(2)}
                     </td>
@@ -381,7 +404,7 @@ export function FacturaDetalleView({
             {totalManoObra > 0 && (
               <tfoot className="bg-zinc-50 font-medium">
                 <tr>
-                  <td colSpan={2} className="px-4 py-2.5 text-right text-zinc-600">
+                  <td colSpan={5} className="px-4 py-2.5 text-right text-zinc-600">
                     Total mano de obra:
                   </td>
                   <td className="px-4 py-2.5 text-right font-bold text-zinc-900">

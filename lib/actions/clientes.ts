@@ -1,6 +1,7 @@
 "use server";
 
 import { clienteSchema, validate } from "@/lib/schemas";
+import { requireEliminar } from "@/lib/auth/permisos";
 import {
   db,
   friendlyDbError,
@@ -59,6 +60,7 @@ export async function updateCliente(
 }
 
 export async function deleteCliente(id: string): Promise<ActionResult> {
+  await requireEliminar("clientes");
   const supabase = await db();
   const { error } = await supabase.from("clientes").delete().eq("id", id);
   if (error)

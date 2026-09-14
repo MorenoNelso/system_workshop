@@ -9,6 +9,15 @@ interface Props {
   rows: Record<string, unknown>[];
 }
 
+function isFieldVisible(
+  field: Field,
+  row: Record<string, unknown> | null,
+): boolean {
+  if (field.visible === undefined) return true;
+  if (typeof field.visible === "boolean") return field.visible;
+  return field.visible(row);
+}
+
 type Row = Record<string, unknown>;
 
 /** Valor crudo para el formulario (sin formato de display). */
@@ -28,6 +37,7 @@ function cellText(field: Field, row: Row): string {
 
 export function CrudClient({ config, rows: initialRows }: Props) {
   const [rows, setRows] = useState<Row[]>(initialRows);
+  const [busqueda, setBusqueda] = useState("");
   const [pending, setPending] = useState<"create" | string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<Row | null>(null);
   const [editing, setEditing] = useState<Row | null>(null);
@@ -79,6 +89,7 @@ export function CrudClient({ config, rows: initialRows }: Props) {
 
     const raw: Record<string, unknown> = {};
     for (const f of config.fields) {
+      if (!isFieldVisible(f, editing)) continue;
       if (f.type === "checkbox") {
         raw[f.name] = formData.get(f.name) === "true";
       } else {
@@ -149,6 +160,17 @@ export function CrudClient({ config, rows: initialRows }: Props) {
     showSuccess(`${config.singular} eliminado correctamente.`);
   }
 
+  const rowsFiltradas = useMemo(() => {
+    const term = busqueda.trim().toLowerCase();
+    const searchFields = config.searchFields;
+    if (!term || !searchFields || searchFields.length === 0) return rows;
+    return rows.filter((row) =>
+      searchFields.some((name) =>
+        String(row[name] ?? "").toLowerCase().includes(term),
+      ),
+    );
+  }, [rows, busqueda, config.searchFields]);
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
@@ -160,14 +182,28 @@ export function CrudClient({ config, rows: initialRows }: Props) {
             <p className="mt-0.5 text-sm text-zinc-500">{config.description}</p>
           ) : null}
         </div>
-        <button
-          type="button"
-          onClick={openCreate}
-          className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700"
-        >
-          Nuevo {config.singular}
-        </button>
+        {!config.hideCreate && (
+          <button
+            type="button"
+            onClick={openCreate}
+            className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700"
+          >
+            Nuevo {config.singular}
+          </button>
+        )}
       </div>
+
+      {config.searchFields && config.searchFields.length > 0 ? (
+        <div className="rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm">
+          <input
+            type="text"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            placeholder={`Buscar por ${config.searchFields.join(", ")}...`}
+            className="w-full rounded-lg border border-zinc-300 bg-zinc-50 px-3 py-2 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-brand-600 focus:bg-white focus:ring-2 focus:ring-brand-100"
+          />
+        </div>
+      ) : null}
 
       {error ? (
         <div
@@ -214,17 +250,17 @@ export function CrudClient({ config, rows: initialRows }: Props) {
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-100">
-            {rows.length === 0 && pending !== "create" ? (
+            {rowsFiltradas.length === 0 && pending !== "create" ? (
               <tr>
                 <td
                   colSpan={colFields.length + 1}
                   className="px-4 py-10 text-center text-zinc-500"
                 >
-                  No hay {config.singular}s todavía.
+                  {busqueda.trim() ? "Sin resultados para la búsqueda." : `No hay ${config.singular}s todavía.`}
                 </td>
               </tr>
             ) : null}
-            {rows.map((row, i) => {
+            {rowsFiltradas.map((row, i) => {
               const id = getRowId(row);
               const isTemp = row.__temp === true;
               return (
@@ -239,6 +275,17 @@ export function CrudClient({ config, rows: initialRows }: Props) {
                   ))}
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-2">
+                      {config.rowActions?.map((a) => (
+                        <button
+                          key={a.label}
+                          type="button"
+                          disabled={pending !== null}
+                          onClick={() => a.onClick(row)}
+                          className={`rounded-md px-2 py-1 text-xs font-medium transition active:scale-[0.98] disabled:opacity-50 ${a.className ?? ""}`}
+                        >
+                          {a.label}
+                        </button>
+                      ))}
                       <button
                         type="button"
                         disabled={pending !== null}
@@ -247,14 +294,16 @@ export function CrudClient({ config, rows: initialRows }: Props) {
                       >
                         Editar
                       </button>
-                      <button
-                        type="button"
-                        disabled={pending !== null}
-                        onClick={() => setConfirmDelete(row)}
-                        className="rounded-md px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:opacity-50"
-                      >
-                        Eliminar
-                      </button>
+                      {!config.hideDelete && (
+                        <button
+                          type="button"
+                          disabled={pending !== null}
+                          onClick={() => setConfirmDelete(row)}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:opacity-50"
+                        >
+                          Eliminar
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -280,13 +329,15 @@ export function CrudClient({ config, rows: initialRows }: Props) {
               className="flex flex-1 flex-col overflow-hidden"
             >
               <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
-                {config.fields.map((f) => (
-                  <FieldInput
-                    key={f.name}
-                    field={f}
-                    value={editing ? valueOf(f, editing) : undefined}
-                  />
-                ))}
+                {config.fields
+                  .filter((f) => isFieldVisible(f, editing))
+                  .map((f) => (
+                    <FieldInput
+                      key={f.name}
+                      field={f}
+                      value={editing ? valueOf(f, editing) : undefined}
+                    />
+                  ))}
               </div>
 
               {/* Botones de acción en posición fija (abajo a la derecha) */}

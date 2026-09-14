@@ -74,7 +74,7 @@ export const clienteSchema = z.object({
 });
 
 export const motoSchema = z.object({
-  cliente_id: id,
+  cliente_id: optionalId,
   marca: text(50),
   modelo: text(50),
   anio: optionalNumber.refine(
@@ -110,6 +110,15 @@ export const repuestoSchema = z.object({
   sku: optionalNullable,
   categoria_id: optionalId,
   proveedor_id: optionalId,
+  calidad: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? "generica" : v),
+    z.enum(["original", "generica"], {
+      message: "La calidad debe ser original o genérica.",
+    }),
+  ).default("generica"),
+  medida: optionalNullable,
+  compatible_con: optionalNullable,
+  notas: optionalNullable,
   stock_actual: z.coerce
     .number({ message: "El stock debe ser un número." })
     .int()
@@ -133,9 +142,7 @@ export const empleadoSchema = z.object({
   nombre: text(100),
   documento: optionalNullable,
   telefono: optionalNullable,
-  tipo_vinculacion: z.enum(["salario_fijo", "comision", "mixto"], {
-    message: "El tipo de vinculación debe ser salario fijo, comisión o mixto.",
-  }),
+  tipo_vinculacion: z.enum(["salario_fijo", "comision", "mixto"]).nullable().optional().default(null),
   salario_base: optionalNumber,
   moneda_salario_id: optionalId,
   porcentaje_comision: z.preprocess(
@@ -184,6 +191,15 @@ export const ordenDetalleManoObraSchema = z.object({
   porcentaje_comision_aplicado: z.preprocess(
     (v) => (typeof v === "string" && v.trim() === "" ? null : Number(v)),
     z.number().min(0).max(100).nullable().optional(),
+  ),
+  monto_a_pagar: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : Number(v)),
+    z.number().min(0).nullable().optional(),
+  ),
+  ayudante_id: z.string().uuid().nullable().optional(),
+  ayudante_monto: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : Number(v)),
+    z.number().min(0).nullable().optional(),
   ),
 });
 
@@ -241,6 +257,14 @@ export const facturaDirectaSchema = z
             .min(0, "El monto no puede ser negativo."),
           moneda_id: id,
           empleado_id: optionalId,
+          porcentaje_comision_aplicado: z.preprocess(
+            (v) => (typeof v === "string" && v.trim() === "" ? null : Number(v)),
+            z.number().min(0).max(100).nullable().optional(),
+          ),
+          monto_a_pagar: z.preprocess(
+            (v) => (typeof v === "string" && v.trim() === "" ? null : Number(v)),
+            z.number().min(0).nullable().optional(),
+          ),
         }),
       )
       .default([]),
@@ -261,6 +285,42 @@ export const pagoSchema = z.object({
   }),
 });
 
+export const gastoSchema = z.object({
+  descripcion: z
+    .string()
+    .trim()
+    .min(1, { message: "Ingresa una descripción." })
+    .max(200, { message: "Máximo 200 caracteres." }),
+  monto: z.coerce
+    .number({ message: "El monto debe ser un número." })
+    .positive({ message: "El monto debe ser mayor a 0." }),
+  moneda_id: id,
+  categoria: z.enum(
+    ["mercado", "ropa", "salud", "educacion", "transporte", "vivienda", "otro"],
+    { message: "Categoría no válida." },
+  ),
+  fecha: z.coerce
+    .string({ message: "Fecha no válida." })
+    .optional(),
+});
+
+export const deduccionSchema = z.object({
+  empleado_id: id,
+  orden_id: optionalId,
+  descripcion: z
+    .string()
+    .trim()
+    .min(1, { message: "Ingresa una descripción." })
+    .max(200, { message: "Máximo 200 caracteres." }),
+  costo: z.coerce
+    .number({ message: "El costo debe ser un número." })
+    .positive({ message: "El costo debe ser mayor a 0." }),
+  moneda_id: id,
+  fecha: z.coerce
+    .string({ message: "Fecha no válida." })
+    .optional(),
+});
+
 export type ClienteInput = z.infer<typeof clienteSchema>;
 export type MotoInput = z.infer<typeof motoSchema>;
 export type CategoriaInput = z.infer<typeof categoriaSchema>;
@@ -275,4 +335,6 @@ export type TasaCambioInput = z.infer<typeof tasaCambioSchema>;
 export type FacturaCreateInput = z.infer<typeof facturaCreateSchema>;
 export type FacturaDirectaInput = z.infer<typeof facturaDirectaSchema>;
 export type PagoInput = z.infer<typeof pagoSchema>;
+export type GastoInput = z.infer<typeof gastoSchema>;
+export type DeduccionInput = z.infer<typeof deduccionSchema>;
 

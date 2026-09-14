@@ -4,8 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { createFactura, createFacturaDirecta } from "@/lib/actions/facturas";
-import { createCliente } from "@/lib/actions/clientes";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 import type {
   FacturaRow,
   MonedaRef,
@@ -25,6 +24,9 @@ interface RepuestoLite {
   stock_actual: number;
   precio_venta: number;
   moneda_id: string;
+  calidad?: string;
+  medida?: string | null;
+  compatible_con?: string | null;
 }
 
 interface MecanicoLite {
@@ -38,7 +40,6 @@ interface Props {
   ordenesFacturables: OrdenFacturable[];
   monedas: MonedaRef[];
   tasas: TasasVigentes;
-  esAdmin: boolean;
   clientes: ClienteLite[];
   repuestos: RepuestoLite[];
   mecanicos: MecanicoLite[];
@@ -94,6 +95,8 @@ interface LineaServicio {
   monto: number;
   moneda_id: string;
   empleado_id: string;
+  porcentaje_comision_aplicado: number | null;
+  monto_a_pagar: number | null;
 }
 
 export function FacturasView({
@@ -101,7 +104,6 @@ export function FacturasView({
   ordenesFacturables,
   monedas,
   tasas,
-  esAdmin,
   clientes,
   repuestos,
   mecanicos,
@@ -144,23 +146,30 @@ export function FacturasView({
     setGuardando(true);
     setError(null);
 
-    const res = await createFactura({
+    const res = await executeOrEnqueue("createFactura", {
       orden_id: ordenSeleccionadaId,
       moneda_id: monedaId,
     });
     setGuardando(false);
 
     if (!res.ok) {
-      setError(res.error);
+      setError(res.error ?? "Error desconocido");
+      return;
+    }
+
+    if ("offline" in res && res.offline) {
+      setError("Sin conexión. La factura se guardó y se enviará cuando vuelva internet.");
+      setModalOpen(false);
+      setOrdenSeleccionadaId("");
       return;
     }
 
     setModalOpen(false);
     setOrdenSeleccionadaId("");
     router.refresh();
-    const data = res.data as { id?: string } | undefined;
-    if (data?.id) {
-      router.push(`/facturas/${data.id}`);
+    const facturaData = "data" in res ? (res.data as { id?: string }) : undefined;
+    if (facturaData?.id) {
+      router.push(`/facturas/${facturaData.id}`);
     }
   }
 
@@ -181,6 +190,8 @@ export function FacturasView({
   const [srvMonto, setSrvMonto] = useState<number | string>("");
   const [srvMonedaId, setSrvMonedaId] = useState("");
   const [srvMecanicoId, setSrvMecanicoId] = useState("");
+  const [srvComision, setSrvComision] = useState<number | string>("");
+  const [srvMontoAPagar, setSrvMontoAPagar] = useState<number | string>("");
 
   const [creandoCliente, setCreandoCliente] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
@@ -237,7 +248,7 @@ export function FacturasView({
     setGuardandoCliente(true);
     setErrorCliente(null);
 
-    const res = await createCliente({
+    const res = await executeOrEnqueue("createCliente", {
       nombre: nuevoNombre,
       telefono: nuevoTelefono,
       direccion: nuevoDireccion || null,
@@ -245,13 +256,21 @@ export function FacturasView({
     setGuardandoCliente(false);
 
     if (!res.ok) {
-      setErrorCliente(res.error);
+      setErrorCliente(res.error ?? "Error desconocido");
       return;
     }
 
-    const nuevo = res.data as { id: string; nombre: string; telefono: string };
-    setClientesState((prev) => [...prev, nuevo]);
-    setClienteRapidaId(nuevo.id);
+    if ("offline" in res && res.offline) {
+      setErrorCliente("Sin conexión. El cliente se guardará cuando vuelva internet.");
+      setCreandoCliente(false);
+      return;
+    }
+
+    const nuevo = "data" in res ? (res.data as { id: string; nombre: string; telefono: string }) : null;
+    if (nuevo) {
+      setClientesState((prev) => [...prev, nuevo]);
+      setClienteRapidaId(nuevo.id);
+    }
     setCreandoCliente(false);
   }
 
@@ -287,11 +306,15 @@ export function FacturasView({
         monto: Number(srvMonto),
         moneda_id: srvMonedaId,
         empleado_id: srvMecanicoId,
+        porcentaje_comision_aplicado: srvComision !== "" ? Number(srvComision) : null,
+        monto_a_pagar: srvMontoAPagar !== "" ? Number(srvMontoAPagar) : null,
       },
     ]);
     setSrvDesc("");
     setSrvMonto("");
     setSrvMecanicoId("");
+    setSrvComision("");
+    setSrvMontoAPagar("");
   }
 
   function removeServicio(idx: number) {
@@ -304,7 +327,7 @@ export function FacturasView({
     setGuardandoRapida(true);
     setErrorRapida(null);
 
-    const res = await createFacturaDirecta({
+    const res = await executeOrEnqueue("createFacturaDirecta", {
       cliente_id: clienteRapidaId,
       moneda_id: monedaRapidaId,
       repuestos: lineasRepuestos.map((r) => ({
@@ -316,20 +339,28 @@ export function FacturasView({
         monto: s.monto,
         moneda_id: s.moneda_id,
         empleado_id: s.empleado_id || null,
+        porcentaje_comision_aplicado: s.porcentaje_comision_aplicado,
+        monto_a_pagar: s.monto_a_pagar,
       })),
     });
     setGuardandoRapida(false);
 
     if (!res.ok) {
-      setErrorRapida(res.error);
+      setErrorRapida(res.error ?? "Error desconocido");
+      return;
+    }
+
+    if ("offline" in res && res.offline) {
+      setErrorRapida("Sin conexión. La venta se guardó y se enviará cuando vuelva internet.");
+      setModalRapida(false);
       return;
     }
 
     setModalRapida(false);
     router.refresh();
-    const data = res.data as { id?: string } | undefined;
-    if (data?.id) {
-      router.push(`/facturas/${data.id}`);
+    const rapidaData = "data" in res ? (res.data as { id?: string }) : undefined;
+    if (rapidaData?.id) {
+      router.push(`/facturas/${rapidaData.id}`);
     }
   }
 
@@ -345,27 +376,25 @@ export function FacturasView({
             Facturas digitales generadas desde órdenes o ventas rápidas. Sin PDF por ahora.
           </p>
         </div>
-        {esAdmin && (
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={abrirRapida}
-              className="inline-flex items-center justify-center rounded-lg border border-brand-200 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition active:scale-[0.98] hover:bg-brand-50"
-            >
-              + Venta rápida
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setModalOpen(true);
-              }}
-              className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700"
-            >
-              + Desde orden
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={abrirRapida}
+            className="inline-flex items-center justify-center rounded-lg border border-brand-200 bg-white px-4 py-2 text-sm font-medium text-brand-700 shadow-sm transition active:scale-[0.98] hover:bg-brand-50"
+          >
+            + Venta rápida
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setModalOpen(true);
+            }}
+            className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700"
+          >
+            + Desde orden
+          </button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -757,7 +786,11 @@ export function FacturasView({
                           .filter((r) => !lineasRepuestos.some((lr) => lr.repuesto_id === r.id))
                           .map((r) => (
                             <option key={r.id} value={r.id}>
-                              {r.nombre} (Stock: {r.stock_actual})
+                              {r.nombre} — {r.calidad === "original" ? "Original" : "Genérica"}
+                              {r.medida ? ` · ${r.medida}` : ""}
+                              {r.compatible_con ? ` · ${r.compatible_con}` : ""}
+                              {" · $"}
+                              {r.precio_venta} (Stock: {r.stock_actual})
                             </option>
                           ))}
                       </select>
@@ -880,6 +913,35 @@ export function FacturasView({
                         Agregar
                       </button>
                     </div>
+                    {srvMecanicoId && (
+                      <div className="flex items-end gap-2">
+                        <div className="w-24">
+                          <label className="text-[10px] font-medium text-zinc-500">% Comisión</label>
+                          <input
+                            type="number"
+                            step={0.5}
+                            min={0}
+                            max={100}
+                            value={srvComision}
+                            onChange={(e) => setSrvComision(e.target.value)}
+                            placeholder="%"
+                            className="mt-0.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                          />
+                        </div>
+                        <div className="flex-1">
+                          <label className="text-[10px] font-medium text-zinc-500">Monto a pagar al mecánico (override)</label>
+                          <input
+                            type="number"
+                            step={0.01}
+                            min={0}
+                            value={srvMontoAPagar}
+                            onChange={(e) => setSrvMontoAPagar(e.target.value)}
+                            placeholder="Monto manual"
+                            className="mt-0.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                          />
+                        </div>
+                      </div>
+                    )}
                   </div>
                   {lineasServicios.length > 0 && (
                     <div className="divide-y divide-zinc-100">

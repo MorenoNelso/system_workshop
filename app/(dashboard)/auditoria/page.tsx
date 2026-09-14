@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AuditoriaView } from "@/components/auditoria/auditoria-view";
 
 export const metadata: Metadata = { title: "Auditoría — Pacho Motos" };
+export const instant = false;
 
 export default async function AuditoriaPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -53,3 +54,4 @@ export default async function AuditoriaPage(props: {
     </div>
   );
 }
+

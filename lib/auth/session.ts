@@ -13,6 +13,7 @@ export interface SessionUser {
   nombre: string;
   rol: Rol;
   activo: boolean;
+  permisos: Record<string, boolean> | null;
 }
 
 export type AuthState = {
@@ -65,7 +66,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
 
   const { data, error } = await supabase
     .from("usuarios")
-    .select("id, email, nombre, rol, activo")
+    .select("id, email, nombre, rol, activo, permisos")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -87,7 +88,14 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     return null;
   }
 
-  return data;
+  return {
+    id: data.id,
+    email: data.email,
+    nombre: data.nombre,
+    rol: data.rol,
+    activo: data.activo,
+    permisos: data.permisos as Record<string, boolean> | null,
+  };
 });
 
 /**

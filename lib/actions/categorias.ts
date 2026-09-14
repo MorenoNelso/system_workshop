@@ -1,6 +1,7 @@
 "use server";
 
 import { categoriaSchema, validate } from "@/lib/schemas";
+import { requireEliminar } from "@/lib/auth/permisos";
 import {
   db,
   friendlyDbError,
@@ -71,6 +72,7 @@ export async function updateCategoria(
 }
 
 export async function deleteCategoria(id: string): Promise<ActionResult> {
+  await requireEliminar("categorias");
   const supabase = await db();
   const { error } = await supabase
     .from("categorias_repuesto")

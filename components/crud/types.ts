@@ -24,6 +24,13 @@ export interface Field {
   get?: (row: Record<string, unknown>) => unknown;
   /** Función para escribir el valor en el FormData. */
   set?: (fd: FormData, value: unknown) => void;
+  /**
+   * Controla si el campo se muestra en el formulario.
+   * - `true` / `undefined` → siempre visible
+   * - `false` → siempre oculto
+   * - función → se evalúa con el registro actual (null si es creación)
+   */
+  visible?: boolean | ((row: Record<string, unknown> | null) => boolean);
 }
 
 export interface CrudAction {
@@ -47,4 +54,19 @@ export interface CrudConfig {
   create: CrudAction;
   update: CrudAction;
   delete: CrudAction;
+  /** Ocultar botón de crear (para roles sin permiso). */
+  hideCreate?: boolean;
+  /** Ocultar columna de acciones de eliminación. */
+  hideDelete?: boolean;
+  /** Acciones extra por fila (ej. botón "+ Entrada"). */
+  rowActions?: CrudRowAction[];
+  /** Campos usados en la búsqueda por texto (si se define, aparece un buscador). */
+  searchFields?: string[];
+}
+
+export interface CrudRowAction {
+  label: string;
+  /** Retorna un color/badge opcional para el botón. */
+  className?: string;
+  onClick: (row: Record<string, unknown>) => void;
 }

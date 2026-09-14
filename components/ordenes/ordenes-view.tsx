@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createOrden, deleteOrden } from "@/lib/actions/ordenes";
+import { createMoto } from "@/lib/actions/motos";
 
 interface ClienteLite {
   id: string;
@@ -13,7 +14,7 @@ interface ClienteLite {
 
 interface MotoLite {
   id: string;
-  cliente_id: string;
+  cliente_id: string | null;
   marca: string;
   modelo: string;
   placa: string | null;
@@ -59,12 +60,19 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cliente seleccionado en el modal para filtrar sus motos
-  const [clienteSeleccionado, setClienteSeleccionado] = useState("");
+  // Motos disponibles en el modal (todas, sin filtrar por cliente)
+  const [motosState, setMotosState] = useState(motos);
+  // Alta rápida de moto desde la orden
+  const [creandoMoto, setCreandoMoto] = useState(false);
+  const [motoMarca, setMotoMarca] = useState("");
+  const [motoModelo, setMotoModelo] = useState("");
+  const [motoCilindraje, setMotoCilindraje] = useState("");
+  const [motoColor, setMotoColor] = useState("");
+  const [motoSel, setMotoSel] = useState("");
+  const [guardandoMoto, setGuardandoMoto] = useState(false);
+  const [errorMoto, setErrorMoto] = useState<string | null>(null);
 
-  const motosFiltradasModal = clienteSeleccionado
-    ? motos.filter((m) => m.cliente_id === clienteSeleccionado)
-    : motos;
+  const motosFiltradasModal = motosState;
 
   const ordenesFiltradas = initialOrdenes.filter((o) => {
     const cumpleEstado = filtroEstado === "todos" || o.estado === filtroEstado;
@@ -108,6 +116,35 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
     }
   }
 
+  async function handleCrearMoto() {
+    if (!motoMarca.trim() || !motoModelo.trim()) {
+      setErrorMoto("La marca y el modelo son obligatorios.");
+      return;
+    }
+    setGuardandoMoto(true);
+    setErrorMoto(null);
+    // La moto se crea SIN cliente (el cliente es de la orden, no de la moto).
+    const res = await createMoto({
+      marca: motoMarca,
+      modelo: motoModelo,
+      cilindraje: motoCilindraje || null,
+      color: motoColor || null,
+    });
+    setGuardandoMoto(false);
+    if (!res.ok) {
+      setErrorMoto(res.error);
+      return;
+    }
+    const nueva = res.data as MotoLite;
+    setMotosState((prev) => [...prev, nueva]);
+    setMotoSel(nueva.id);
+    setCreandoMoto(false);
+    setMotoMarca("");
+    setMotoModelo("");
+    setMotoCilindraje("");
+    setMotoColor("");
+  }
+
   async function handleDelete(id: string) {
     if (!confirm("¿Estás seguro de eliminar esta orden?")) return;
     const res = await deleteOrden(id);
@@ -149,7 +186,7 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
           type="button"
           onClick={() => {
             setError(null);
-            setClienteSeleccionado("");
+            setMotoSel("");
             setModalOpen(true);
           }}
           className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700"
@@ -293,8 +330,6 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                   <select
                     name="cliente_id"
                     required
-                    value={clienteSeleccionado}
-                    onChange={(e) => setClienteSeleccionado(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   >
                     <option value="">— Seleccionar cliente —</option>
@@ -311,21 +346,85 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                   <label className="text-xs font-medium text-zinc-700">
                     Motocicleta <span className="text-red-500">*</span>
                   </label>
-                  <select
-                    name="moto_id"
-                    required
-                    disabled={!clienteSeleccionado}
-                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 disabled:bg-zinc-100"
-                  >
-                    <option value="">
-                      {clienteSeleccionado ? "— Seleccionar moto —" : "Primero selecciona un cliente"}
-                    </option>
-                    {motosFiltradasModal.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.marca} {m.modelo} {m.placa ? `(Placa: ${m.placa})` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="flex items-center gap-2">
+                    <select
+                      name="moto_id"
+                      required
+                      value={motoSel}
+                      onChange={(e) => setMotoSel(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                    >
+                      <option value="">— Seleccionar moto —</option>
+                      {motosFiltradasModal.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.marca} {m.modelo} {m.placa ? `(Placa: ${m.placa})` : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCreandoMoto(!creandoMoto);
+                        setErrorMoto(null);
+                      }}
+                      className="mt-1 shrink-0 rounded-lg border border-brand-200 bg-white px-2.5 py-2 text-xs font-medium text-brand-700 transition hover:bg-brand-50 active:scale-[0.98]"
+                    >
+                      + Nueva
+                    </button>
+                  </div>
+
+                  {creandoMoto ? (
+                    <div className="mt-2 space-y-2 rounded-lg border border-brand-200 bg-brand-50/40 p-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          placeholder="Marca *"
+                          value={motoMarca}
+                          onChange={(e) => setMotoMarca(e.target.value)}
+                          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Modelo *"
+                          value={motoModelo}
+                          onChange={(e) => setMotoModelo(e.target.value)}
+                          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Cilindraje (opcional)"
+                          value={motoCilindraje}
+                          onChange={(e) => setMotoCilindraje(e.target.value)}
+                          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Color (opcional)"
+                          value={motoColor}
+                          onChange={(e) => setMotoColor(e.target.value)}
+                          className="rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                        />
+                      </div>
+                      {errorMoto && <p className="text-xs text-red-600">{errorMoto}</p>}
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleCrearMoto}
+                          disabled={guardandoMoto}
+                          className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
+                        >
+                          {guardandoMoto ? "Guardando…" : "Guardar moto"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCreandoMoto(false)}
+                          className="rounded-lg px-3 py-1.5 text-xs font-medium text-zinc-600 transition hover:bg-zinc-100"
+                        >
+                          Cancelar
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 {/* Mecánico asignado */}

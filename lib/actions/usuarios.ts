@@ -107,13 +107,46 @@ export async function listUsuarios(): Promise<UsuarioRow[]> {
   return (data ?? []) as unknown as UsuarioRow[];
 }
 
-/** Activa o desactiva un usuario (solo admin). */
+/** Cuenta los administradores ACTIVOS (service role). */
+async function contarAdminsActivos(admin: ReturnType<typeof createAdminClient>): Promise<number> {
+  const { count } = await admin
+    .from("usuarios")
+    .select("id", { count: "exact", head: true })
+    .eq("rol", "administrador")
+    .eq("activo", true);
+  return count ?? 0;
+}
+
+/**
+ * Activa o desactiva un usuario (solo admin).
+ * Protección: no se puede desactivar al ÚLTIMO administrador activo.
+ */
 export async function toggleUsuarioActivo(
   id: string,
   activo: boolean,
 ): Promise<{ ok: boolean; error?: string }> {
   await requireRole("administrador");
   const admin = createAdminClient();
+
+  // Si se intenta desactivar, verificar que no sea el último admin activo.
+  if (!activo) {
+    const { data: target } = await admin
+      .from("usuarios")
+      .select("rol")
+      .eq("id", id)
+      .maybeSingle();
+    if (target?.rol === "administrador") {
+      const adminsActivos = await contarAdminsActivos(admin);
+      if (adminsActivos <= 1) {
+        return {
+          ok: false,
+          error:
+            "No se puede desactivar al último administrador activo. Debe haber al menos un administrador en el sistema.",
+        };
+      }
+    }
+  }
+
   const { error } = await admin.from("usuarios").update({ activo }).eq("id", id);
   if (error) {
     return { ok: false, error: "No se pudo actualizar el usuario." };
@@ -121,13 +154,36 @@ export async function toggleUsuarioActivo(
   return { ok: true };
 }
 
-/** Cambia el rol de un usuario (solo admin). */
+/**
+ * Cambia el rol de un usuario (solo admin).
+ * Protección: no se puede degradar al ÚLTIMO administrador activo.
+ */
 export async function cambiarRolUsuario(
   id: string,
   rol: "administrador" | "colaborador",
 ): Promise<{ ok: boolean; error?: string }> {
   await requireRole("administrador");
   const admin = createAdminClient();
+
+  // Si se intenta quitar el rol admin, verificar que no sea el último.
+  if (rol === "colaborador") {
+    const { data: target } = await admin
+      .from("usuarios")
+      .select("rol")
+      .eq("id", id)
+      .maybeSingle();
+    if (target?.rol === "administrador") {
+      const adminsActivos = await contarAdminsActivos(admin);
+      if (adminsActivos <= 1) {
+        return {
+          ok: false,
+          error:
+            "No se puede quitar el rol de administrador al último administrador activo. Debe haber al menos un administrador en el sistema.",
+        };
+      }
+    }
+  }
+
   const { error } = await admin.from("usuarios").update({ rol }).eq("id", id);
   if (error) {
     return { ok: false, error: "No se pudo actualizar el rol." };

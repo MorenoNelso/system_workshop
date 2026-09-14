@@ -1,6 +1,7 @@
 "use server";
 
 import { proveedorSchema, validate } from "@/lib/schemas";
+import { requireEliminar } from "@/lib/auth/permisos";
 import {
   db,
   friendlyDbError,
@@ -61,6 +62,7 @@ export async function updateProveedor(
 }
 
 export async function deleteProveedor(id: string): Promise<ActionResult> {
+  await requireEliminar("proveedores");
   const supabase = await db();
   const { error } = await supabase
     .from("proveedores")

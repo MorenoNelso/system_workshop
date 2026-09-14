@@ -1,0 +1,247 @@
+/**
+ * Cliente IndexedDB para la cola de acciones offline.
+ * Almacena server actions que fallaron por falta de internet
+ * para reintentarlas cuando vuelva la conexión.
+ */
+
+const DB_NAME = "pacho-motos-offline";
+const DB_VERSION = 1;
+const STORE_NAME = "action-queue";
+
+export interface OfflineAction {
+  id?: number;
+  action: string;
+  data: unknown;
+  timestamp: number;
+  status: "pending" | "synced" | "failed";
+  error?: string;
+  retries: number;
+}
+
+function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        const store = db.createObjectStore(STORE_NAME, {
+          keyPath: "id",
+          autoIncrement: true,
+        });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("timestamp", "timestamp", { unique: false });
+      }
+    };
+
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+/**
+ * Agrega una acción a la cola offline.
+ * Retorna el ID generado.
+ */
+export async function enqueueAction(
+  action: string,
+  data: unknown,
+): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const entry: Omit<OfflineAction, "id"> = {
+      action,
+      data,
+      timestamp: Date.now(),
+      status: "pending",
+      retries: 0,
+    };
+    const request = store.add(entry);
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result as number);
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+/**
+ * Obtiene todas las acciones pendientes (ordenadas por timestamp).
+ */
+export async function getPendingActions(): Promise<OfflineAction[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const index = store.index("status");
+    const request = index.getAll(IDBKeyRange.only("pending"));
+    request.onsuccess = () => {
+      const results = (request.result as OfflineAction[]).sort(
+        (a, b) => a.timestamp - b.timestamp,
+      );
+      db.close();
+      resolve(results);
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+/**
+ * Marca una acción como sincronizada.
+ */
+export async function markSynced(id: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const item = getReq.result as OfflineAction;
+      if (item) {
+        item.status = "synced";
+        store.put(item);
+      }
+      db.close();
+      resolve();
+    };
+    getReq.onerror = () => {
+      db.close();
+      reject(getReq.error);
+    };
+  });
+}
+
+/**
+ * Marca una acción como fallida con un error.
+ */
+export async function markFailed(id: number, error: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const item = getReq.result as OfflineAction;
+      if (item) {
+        item.status = "failed";
+        item.error = error;
+        item.retries += 1;
+        store.put(item);
+      }
+      db.close();
+      resolve();
+    };
+    getReq.onerror = () => {
+      db.close();
+      reject(getReq.error);
+    };
+  });
+}
+
+/**
+ * Elimina de la cola una acción sincronizada o fallida (limpieza).
+ */
+export async function removeAction(id: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.delete(id);
+    request.onsuccess = () => {
+      db.close();
+      resolve();
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+/**
+ * Elimina todas las acciones sincronizadas o fallidas (limpieza periódica).
+ */
+export async function cleanupSyncedActions(): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const index = store.index("status");
+    let deleted = 0;
+
+    const request = index.openCursor();
+    request.onsuccess = () => {
+      const cursor = request.result;
+      if (!cursor) {
+        db.close();
+        resolve(deleted);
+        return;
+      }
+      const val = cursor.value;
+      if (val.status === "synced") {
+        cursor.delete();
+        deleted++;
+      } else if (val.status === "failed" && (val.retries ?? 0) >= 3) {
+        cursor.delete();
+        deleted++;
+      }
+      cursor.continue();
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+/**
+ * Retorna el conteo de acciones pendientes.
+ */
+export async function getPendingCount(): Promise<number> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const index = store.index("status");
+    const request = index.count(IDBKeyRange.only("pending"));
+    request.onsuccess = () => {
+      db.close();
+      resolve(request.result);
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}
+
+/**
+ * Obtiene todas las acciones pendientes Y fallidas (para UI).
+ */
+export async function getPendingAndFailedActions(): Promise<OfflineAction[]> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const store = tx.objectStore(STORE_NAME);
+    const request = store.getAll();
+    request.onsuccess = () => {
+      const results = (request.result as OfflineAction[])
+        .filter((a) => a.status === "pending" || a.status === "failed")
+        .sort((a, b) => a.timestamp - b.timestamp);
+      db.close();
+      resolve(results);
+    };
+    request.onerror = () => {
+      db.close();
+      reject(request.error);
+    };
+  });
+}

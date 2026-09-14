@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { SerwistProvider } from "@serwist/turbopack/react";
+import { PwaOfflineBanner } from "@/components/pwa/pwa-offline-banner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -15,6 +17,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Pacho Motos",
   description: "Sistema de gestión del taller de motos",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: "/icon-512x512.png",
+    apple: "/icon-192x192.png",
+  },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
@@ -24,7 +31,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-zinc-50 text-zinc-900">
-        {children}
+        <SerwistProvider swUrl="/serwist/sw.js" disable={process.env.NODE_ENV === "development"}>
+          <PwaOfflineBanner />
+          {children}
+        </SerwistProvider>
       </body>
     </html>
   );

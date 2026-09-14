@@ -1,9 +1,14 @@
 import Link from "next/link";
 
 import { NavMenu } from "@/components/nav/menu";
+import { OfflineProvider } from "@/components/pwa/offline-provider";
 import { logout } from "@/lib/actions/auth";
 import { requireUser } from "@/lib/auth/session";
 import { getConfiguracion } from "@/lib/actions/config";
+
+// Cache Components: el layout lee cookies (sesión), se opta out de la
+// validación de render estático y bloquea en el servidor (navegación segura).
+export const instant = false;
 
 /**
  * Layout de todas las rutas autenticadas del taller.
@@ -33,6 +38,7 @@ export default async function DashboardLayout({
           <div className="flex items-center gap-4">
             <Link
               href="/"
+              prefetch
               className="flex items-center gap-2 text-sm font-semibold tracking-tight text-zinc-900"
             >
               {config.logo_principal_url ? (
@@ -81,7 +87,7 @@ export default async function DashboardLayout({
       </header>
 
       <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
-        {children}
+        <OfflineProvider>{children}</OfflineProvider>
       </main>
     </div>
   );

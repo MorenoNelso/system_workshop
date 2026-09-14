@@ -67,8 +67,8 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 | 3 | Órdenes de servicio, Mano de obra, Empleados | ✅ Completa |
 | 4 | Facturación, Pagos, Multi-moneda | ✅ Completa |
 | 5 | Dashboard y Reportes | ✅ Completa |
-| 6 | Hardening de seguridad (auditoría completa) | ⬜ Pendiente |
-| 7 | Testing | ⬜ Pendiente |
+| 6 | Hardening de seguridad (auditoría completa) | ✅ Completa |
+| 7 | Testing | 🔄 En curso (Vitest + módulos puros: currency, schemas, rate-limit) |
 | 8 | Despliegue a producción (Netlify + Supabase Pro) | ⬜ Pendiente |
 
 **Regla de trabajo:** fases pequeñas. No implementar nada que no esté en la fase actual. Si algo no está claro, preguntar antes de asumir.
@@ -146,6 +146,40 @@ SENTRY_DSN=
 
 ## Paleta de colores
 
-Base: **azul, gris, negro y blanco**. Sin rosa ni emojis en toda la UI. El único acento fuera de la paleta base es el **cian eléctrico** (`#22d3ee`) del gráfico de ventas del dashboard (gradiente cian→azul con glow sutil), aprobado como excepción puntual. Sin emojis en ningún texto de la interfaz — usar iconos SVG inline cuando se necesite un pictograma.
+Paleta oficial **Pacho Motos** (definida en `app/globals.css` como tokens `brand-*`):
+- **Azul vivido** `#1234ab` (`brand-600`) → botones, links y acentos.
+- **Azul oscuro apagado** `#2e3747` (`brand-900`) → fondos oscuros.
+- **Negro** `#000000` y **blanco** `#ffffff`.
+- El único acento fuera de la paleta es el **cian eléctrico** (`#22d3ee`) del gráfico de ventas del dashboard (gradiente cian→azul con glow sutil), aprobado como excepción puntual.
+- Sin rosa ni emojis en toda la UI — usar iconos SVG inline cuando se necesite un pictograma.
 
-Logo: campo `configuracion_sistema.logo_url` apunta a Supabase Storage. Si el archivo no existe aún, usar placeholder con iniciales del taller en la paleta de colores.
+**Logos** (Supabase Storage, bucket `logos`):
+- `configuracion_sistema.logo_url` → logo principal (header/login). `getConfiguracion()` en `lib/actions/config.ts` lo lee.
+- `logo_principal_url` → Logo1 (header). `logo_login_url` → Logo3 (login). `logo_watermark_url` → Logo4 (factura).
+- Favicon: `app/favicon.ico` = Logo5.
+
+## Testing
+
+- Framework: **Vitest** (`npm run test`).
+- Tests en `tests/*.test.ts` sobre módulos puros (sin Supabase): `lib/currency.ts`, `lib/schemas.ts`, `lib/rate-limit.ts`.
+- Importar con alias `@/` (configurado en `vitest.config.ts`). Usar `crypto.randomUUID()` para UUIDs válidos (Zod 4 valida RFC 4122 estricto).
+- El rate limiter mantiene estado global: recargar módulo con `vi.resetModules()` antes de cada test.
+
+## Rendimiento y caching
+
+- **Cache Components** habilitado (`cacheComponents: true` en `next.config.ts`). Las rutas que leen cookies (sesión) declaran `export const instant = false` (layout dashboard, login, recuperar/codigo).
+- **Prefetch** activado en los `<Link>` del menú (`components/nav/menu.tsx`) y el header → navegación instantánea (shell estático + streaming del contenido dinámico).
+- `lib/currency.ts` expone `construirTasasVigentes()` (lógica pura, testeable) separada de la consulta `getTasasVigentes()`.
+- **No usar `use cache`** en funciones que leen `cookies()` (session) — Next 16 lo prohíbe. `getCurrentUser`, `getConfiguracion` y `getTasasVigentes` se memoizan por request con `React.cache()`.
+- El modo offline (PWA) está pendiente de implementar (Fase 2): manifest + service worker (Serwist) + cola de facturas en IndexedDB con subida semi-manual.
+
+---
+
+## Pendientes para el despliegue (Fase 8)
+
+- **SMTP del cliente** (correo de recuperación de contraseña): configurar en Supabase → Authentication → SMTP con el Gmail **del cliente** (app password). Hoy usa el SMTP default de Supabase (límite 2 correos/hora, remitente de Supabase).
+- **Verificar template de email OTP** en Supabase → Email Templates: debe mostrar `{{ .Token }}` (código numérico).
+- **Limpieza de `docs/`**: mover SQLs y manuales sensibles fuera del repo antes de subir a Netlify.
+- **`netlify.toml`**: no existe aún. Crear con headers + env vars para producción.
+- **Backup de la BD** antes del despliegue.
+- Decidir plan de Supabase (Starter gratuito suele bastar para 1-3 usuarios).

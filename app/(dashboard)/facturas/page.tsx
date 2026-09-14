@@ -16,8 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Facturación — Pacho Motos" };
 
 export default async function FacturasPage() {
-  const user = await requireUser();
-  const esAdmin = user.rol === "administrador";
+  await requireUser();
 
   const [
     facturas,
@@ -28,17 +27,26 @@ export default async function FacturasPage() {
     mecanicos,
   ] = await Promise.all([
     listFacturas(),
-    esAdmin ? listOrdenesFacturables() : Promise.resolve([]),
+    listOrdenesFacturables(),
     listMonedas(),
-    esAdmin ? listClientes() : Promise.resolve([]),
-    esAdmin ? listRepuestos() : Promise.resolve([]),
-    esAdmin ? listMecanicosActivos() : Promise.resolve([]),
+    listClientes(),
+    listRepuestos(),
+    listMecanicosActivos(),
   ]);
 
   const tasas = await getTasasVigentes(await createClient());
 
-  const repuestosActivos = (repuestos as { id: string; nombre: string; stock_actual: number; precio_venta: number; moneda_id: string; activo: boolean }[])
-    .filter((r) => r.activo && r.stock_actual > 0);
+  const repuestosActivos = (repuestos as {
+    id: string;
+    nombre: string;
+    stock_actual: number;
+    precio_venta: number;
+    moneda_id: string;
+    activo: boolean;
+    calidad: string;
+    medida: string | null;
+    compatible_con: string | null;
+  }[]).filter((r) => r.activo && r.stock_actual > 0);
 
   return (
     <FacturasView
@@ -46,7 +54,6 @@ export default async function FacturasPage() {
       ordenesFacturables={ordenesFacturables}
       monedas={monedas}
       tasas={tasas}
-      esAdmin={esAdmin}
       clientes={clientes as { id: string; nombre: string; telefono: string }[]}
       repuestos={repuestosActivos}
       mecanicos={mecanicos as { id: string; nombre: string; porcentaje_comision: number | null }[]}

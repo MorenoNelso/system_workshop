@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser } from "@/lib/auth/session";
+import { requireEliminar } from "@/lib/auth/permisos";
 import {
   ordenDetalleManoObraSchema,
   ordenDetalleRepuestoSchema,
@@ -47,8 +48,10 @@ export interface ManoObraDetalleOrden {
   monto: number;
   porcentaje_comision_aplicado: number | null;
   comision_calculada: number | null;
+  ayudante_monto: number | null;
   empleado: { nombre: string } | null;
   moneda: { simbolo: string } | null;
+  ayudante: { nombre: string } | null;
 }
 
 export interface OrdenDetalle {
@@ -109,10 +112,32 @@ export async function getOrdenById(id: string): Promise<OrdenDetalle | null> {
       .eq("orden_id", id),
   ]);
 
+  // Resolver nombres de ayudantes (no se puede hacer JOIN a la misma tabla dos veces)
+  const ayudanteIds = [...new Set(
+    (manoObra ?? [])
+      .map((m: Record<string, unknown>) => m.ayudante_id)
+      .filter((aid): aid is string => !!aid),
+  )];
+  const ayudantesMap: Record<string, string> = {};
+  if (ayudanteIds.length > 0) {
+    const { data: ayudantes } = await supabase
+      .from("empleados")
+      .select("id, nombre")
+      .in("id", ayudanteIds);
+    for (const a of ayudantes ?? []) {
+      ayudantesMap[a.id] = a.nombre;
+    }
+  }
+
+  const manoObraConAyudante = (manoObra ?? []).map((m: Record<string, unknown>) => ({
+    ...m,
+    ayudante: m.ayudante_id ? { nombre: ayudantesMap[m.ayudante_id as string] ?? null } : null,
+  }));
+
   return {
     ...(orden as unknown as OrdenDetalle),
     repuestos: (repuestos ?? []) as unknown as RepuestoDetalleOrden[],
-    mano_obra: (manoObra ?? []) as unknown as ManoObraDetalleOrden[],
+    mano_obra: manoObraConAyudante as unknown as ManoObraDetalleOrden[],
   };
 }
 
@@ -177,6 +202,7 @@ export async function updateEstadoOrden(
 }
 
 export async function deleteOrden(id: string): Promise<ActionResult> {
+  await requireEliminar("ordenes");
   const supabase = await db();
   const { error } = await supabase.from("ordenes_servicio").delete().eq("id", id);
   if (error)
@@ -203,7 +229,7 @@ export async function agregarRepuestoAOrden(raw: unknown): Promise<ActionResult>
   // 1. Obtener datos actuales del repuesto para validar stock y tomar snapshot
   const { data: repuesto, error: repError } = await supabase
     .from("repuestos")
-    .select("id, nombre, stock_actual, precio_venta, moneda_id, activo")
+    .select("id, nombre, stock_actual, precio_venta, precio_costo, moneda_id, activo")
     .eq("id", repuesto_id)
     .single();
 
@@ -222,7 +248,7 @@ export async function agregarRepuestoAOrden(raw: unknown): Promise<ActionResult>
     };
   }
 
-  // 2. Insertar detalle con snapshot de precio_venta y moneda_id
+  // 2. Insertar detalle con snapshot de precio_venta, costo y moneda_id
   const { data: detalle, error: insError } = await supabase
     .from("orden_detalle_repuestos")
     .insert({
@@ -230,6 +256,7 @@ export async function agregarRepuestoAOrden(raw: unknown): Promise<ActionResult>
       repuesto_id,
       cantidad,
       precio_unitario_aplicado: repuesto.precio_venta,
+      precio_costo_aplicado: repuesto.precio_costo ?? null,
       moneda_id: repuesto.moneda_id,
     })
     .select()
@@ -310,6 +337,17 @@ export async function agregarManoObraAOrden(raw: unknown): Promise<ActionResult>
   const { orden_id, empleado_id, descripcion, monto, moneda_id } = parsed.data;
   const supabase = await db();
 
+  // Validar que la orden esté en estado modificable
+  const { data: orden } = await supabase
+    .from("ordenes_servicio")
+    .select("estado")
+    .eq("id", orden_id)
+    .single();
+  if (!orden) return { ok: false, error: "La orden no existe." };
+  if (orden.estado === "entregado") {
+    return { ok: false, error: "No se puede agregar mano de obra a una orden entregada." };
+  }
+
   // 1. Obtener comisión configurada en el empleado si no vino explícita
   let porcentajeComision = parsed.data.porcentaje_comision_aplicado ?? null;
   if (porcentajeComision === null || porcentajeComision === undefined) {
@@ -321,13 +359,24 @@ export async function agregarManoObraAOrden(raw: unknown): Promise<ActionResult>
     porcentajeComision = empleado?.porcentaje_comision ?? null;
   }
 
-  // 2. Calcular la comisión snapshot
-  const comisionCalculada =
-    porcentajeComision !== null && porcentajeComision !== undefined
-      ? Number(((monto * porcentajeComision) / 100).toFixed(2))
-      : null;
+  // 2. Calcular la comisión: si hay monto_a_pagar, usarlo directamente;
+  //    si no, calcular desde el porcentaje
+  const montoAPagar = parsed.data.monto_a_pagar ?? null;
+  let comisionCalculada: number | null = null;
 
-  // 3. Insertar detalle de mano de obra
+  if (montoAPagar !== null && montoAPagar !== undefined) {
+    // Monto manual: el mecánico gana lo que se especificó
+    comisionCalculada = montoAPagar;
+  } else if (porcentajeComision !== null && porcentajeComision !== undefined) {
+    // Cálculo automático desde porcentaje
+    comisionCalculada = Number(((monto * porcentajeComision) / 100).toFixed(2));
+  }
+
+  // 3. Datos del ayudante (opcional)
+  const ayudanteId = parsed.data.ayudante_id ?? null;
+  const ayudanteMonto = parsed.data.ayudante_monto ?? null;
+
+  // 4. Insertar detalle de mano de obra
   const { data: detalle, error } = await supabase
     .from("orden_detalle_mano_obra")
     .insert({
@@ -338,6 +387,8 @@ export async function agregarManoObraAOrden(raw: unknown): Promise<ActionResult>
       moneda_id,
       porcentaje_comision_aplicado: porcentajeComision,
       comision_calculada: comisionCalculada,
+      ayudante_id: ayudanteId,
+      ayudante_monto: ayudanteMonto,
     })
     .select()
     .single();
@@ -354,6 +405,7 @@ export async function eliminarManoObraDeOrden(
   detalleId: string,
   ordenId: string,
 ): Promise<ActionResult> {
+  await requireEliminar("ordenes");
   const supabase = await db();
   const { error } = await supabase
     .from("orden_detalle_mano_obra")

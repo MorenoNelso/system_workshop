@@ -1,6 +1,7 @@
 "use server";
 
 import { motoSchema, validate } from "@/lib/schemas";
+import { requireEliminar } from "@/lib/auth/permisos";
 import {
   db,
   friendlyDbError,
@@ -59,6 +60,7 @@ export async function updateMoto(
 }
 
 export async function deleteMoto(id: string): Promise<ActionResult> {
+  await requireEliminar("motos");
   const supabase = await db();
   const { error } = await supabase.from("motos").delete().eq("id", id);
   if (error)

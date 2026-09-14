@@ -5,18 +5,12 @@ import { OrdenDetalleView } from "@/components/ordenes/orden-detalle-view";
 import { getOrdenById } from "@/lib/actions/ordenes";
 import { listRepuestos } from "@/lib/actions/repuestos";
 import { listMecanicosActivos } from "@/lib/actions/empleados";
-import { db } from "@/lib/actions/_crud-helpers";
+import { listMonedas } from "@/lib/actions/tasas";
 
 export const metadata: Metadata = { title: "Detalle de Orden — Pacho Motos" };
 
 interface PageProps {
   params: Promise<{ id: string }>;
-}
-
-async function listMonedas() {
-  const supabase = await db();
-  const { data } = await supabase.from("monedas").select("*").order("codigo");
-  return data ?? [];
 }
 
 export default async function OrdenDetallePage({ params }: PageProps) {

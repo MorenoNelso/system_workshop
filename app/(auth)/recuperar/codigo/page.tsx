@@ -6,6 +6,9 @@ export const metadata: Metadata = {
   title: "Ingresar código — Pacho Motos",
 };
 
+// Cache Components: lee searchParams (runtime) en el servidor.
+export const instant = false;
+
 export default async function CodigoPage(props: PageProps<"/recuperar/codigo">) {
   const search = await props.searchParams;
   const email =

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 
 import { getAuthState } from "@/lib/auth/session";
 import { getConfiguracion } from "@/lib/actions/config";
@@ -9,8 +8,8 @@ export const metadata: Metadata = {
   title: "Iniciar sesión — Pacho Motos",
 };
 
-const FONDO_LOGIN_URL =
-  "https://xornnmlgufdlscxhgyyp.supabase.co/storage/v1/object/public/logos/Logo6.png";
+// Cache Components: lee el estado de sesión (cookies) en el servidor.
+export const instant = false;
 
 export default async function LoginPage(props: PageProps<"/login">) {
   const search = await props.searchParams;
@@ -25,19 +24,7 @@ export default async function LoginPage(props: PageProps<"/login">) {
   const config = await getConfiguracion();
 
   return (
-    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-zinc-950 px-4 py-12">
-      {/* Imagen de fondo difuminada (precargada y optimizada por next/image) */}
-      <div className="pointer-events-none absolute inset-0" aria-hidden="true">
-        <Image
-          src={FONDO_LOGIN_URL}
-          alt=""
-          fill
-          priority
-          sizes="100vw"
-          className="object-cover opacity-40 blur-sm"
-        />
-      </div>
-
+    <main className="relative flex min-h-dvh items-center justify-center overflow-hidden bg-brand-900 px-4 py-12">
       <div className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
         <div className="px-8 pb-8 pt-6">
           <div className="mb-6 flex flex-col items-center gap-2 text-center">

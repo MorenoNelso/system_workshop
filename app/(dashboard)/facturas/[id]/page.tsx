@@ -11,6 +11,8 @@ import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Factura — Pacho Motos" };
 
+export const instant = false;
+
 export default async function FacturaDetallePage(props: {
   params: Promise<{ id: string }>;
 }) {

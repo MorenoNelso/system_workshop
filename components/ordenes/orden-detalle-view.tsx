@@ -47,8 +47,10 @@ interface ManoObraDetalleOrden {
   monto: number;
   porcentaje_comision_aplicado: number | null;
   comision_calculada: number | null;
+  ayudante_monto: number | null;
   empleado: { nombre: string } | null;
   moneda: { simbolo: string } | null;
+  ayudante: { nombre: string } | null;
 }
 
 interface OrdenDetalle {
@@ -106,6 +108,9 @@ export function OrdenDetalleView({
   const [montoMO, setMontoMO] = useState<number | string>("");
   const [monedaMOId, setMonedaMOId] = useState(monedas[0]?.id || "");
   const [comisionMO, setComisionMO] = useState<number | string>("");
+  const [montoAPagarMO, setMontoAPagarMO] = useState<number | string>("");
+  const [ayudanteId, setAyudanteId] = useState<string>("");
+  const [ayudanteMonto, setAyudanteMonto] = useState<number | string>("");
   const [guardandoMO, setGuardandoMO] = useState(false);
   const [errorMO, setErrorMO] = useState<string | null>(null);
 
@@ -183,6 +188,9 @@ export function OrdenDetalleView({
       monto: Number(montoMO),
       moneda_id: monedaMOId,
       porcentaje_comision_aplicado: comisionMO !== "" ? Number(comisionMO) : null,
+      monto_a_pagar: montoAPagarMO !== "" ? Number(montoAPagarMO) : null,
+      ayudante_id: ayudanteId || null,
+      ayudante_monto: ayudanteMonto !== "" ? Number(ayudanteMonto) : null,
     });
 
     setGuardandoMO(false);
@@ -194,6 +202,9 @@ export function OrdenDetalleView({
     setModalManoObra(false);
     setDescripcionMO("");
     setMontoMO("");
+    setMontoAPagarMO("");
+    setAyudanteId("");
+    setAyudanteMonto("");
     router.refresh();
   }
 
@@ -441,6 +452,7 @@ export function OrdenDetalleView({
                 <th className="px-4 py-2.5 font-medium">Descripción del Servicio</th>
                 <th className="px-4 py-2.5 font-medium text-right">% Comisión</th>
                 <th className="px-4 py-2.5 font-medium text-right">Comisión Mecánico</th>
+                <th className="px-4 py-2.5 font-medium">Ayudante</th>
                 <th className="px-4 py-2.5 font-medium text-right">Monto</th>
                 <th className="px-4 py-2.5 text-right font-medium">Acción</th>
               </tr>
@@ -448,7 +460,7 @@ export function OrdenDetalleView({
             <tbody className="divide-y divide-zinc-100">
               {(!orden.mano_obra || orden.mano_obra.length === 0) ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-6 text-center text-xs text-zinc-400">
+                  <td colSpan={7} className="px-4 py-6 text-center text-xs text-zinc-400">
                     No se han registrado servicios de mano de obra.
                   </td>
                 </tr>
@@ -470,6 +482,11 @@ export function OrdenDetalleView({
                     <td className="px-4 py-2.5 text-right font-semibold text-zinc-900">
                       {item.moneda?.simbolo || "$"} {Number(item.monto).toFixed(2)}
                     </td>
+                    <td className="px-4 py-2.5 text-xs text-zinc-600">
+                      {item.ayudante?.nombre ? (
+                        <span>{item.ayudante.nombre} — {item.moneda?.simbolo || "$"} {Number(item.ayudante_monto).toFixed(2)}</span>
+                      ) : "—"}
+                    </td>
                     <td className="px-4 py-2.5 text-right">
                       <button
                         type="button"
@@ -486,7 +503,7 @@ export function OrdenDetalleView({
             {orden.mano_obra?.length > 0 && (
               <tfoot className="bg-zinc-50 font-medium">
                 <tr>
-                  <td colSpan={3} className="px-4 py-2.5 text-right text-zinc-600">Total Comisiones:</td>
+                  <td colSpan={4} className="px-4 py-2.5 text-right text-zinc-600">Total Comisiones:</td>
                   <td className="px-4 py-2.5 text-right font-bold text-emerald-700">
                     {monedaSimbolo} {totalComisiones.toFixed(2)}
                   </td>
@@ -692,12 +709,71 @@ export function OrdenDetalleView({
                 />
               </div>
 
-              {montoMO && comisionMO && (
+              <div>
+                <label className="text-xs font-medium text-zinc-700">
+                  Monto a pagar al mecánico (opcional, sobreescribe el cálculo por %)
+                </label>
+                <input
+                  type="number"
+                  step={0.01}
+                  min={0}
+                  placeholder="Ej: 40 (lo que realmente gana el mecánico)"
+                  value={montoAPagarMO}
+                  onChange={(e) => setMontoAPagarMO(e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-zinc-700">Ayudante (opcional)</label>
+                  <select
+                    value={ayudanteId}
+                    onChange={(e) => setAyudanteId(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                  >
+                    <option value="">— Ninguno —</option>
+                    {mecanicos.filter((m) => m.id !== mecanicoId).map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-zinc-700">Monto para ayudante</label>
+                  <input
+                    type="number"
+                    step={0.01}
+                    min={0}
+                    placeholder="0.00"
+                    value={ayudanteMonto}
+                    onChange={(e) => setAyudanteMonto(e.target.value)}
+                    disabled={!ayudanteId}
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 disabled:opacity-40"
+                  />
+                </div>
+              </div>
+
+              {montoMO && (
                 <div className="rounded-lg bg-emerald-50 p-2.5 text-xs text-emerald-800">
-                  Comisión calculada para el mecánico:{" "}
-                  <span className="font-bold">
-                    ${((Number(montoMO) * Number(comisionMO)) / 100).toFixed(2)}
-                  </span>
+                  {montoAPagarMO !== "" ? (
+                    <>
+                      El mecánico gana:{" "}
+                      <span className="font-bold">
+                        ${Number(montoAPagarMO).toFixed(2)}
+                      </span>
+                      <span className="ml-2 text-emerald-600">(monto manual)</span>
+                    </>
+                  ) : comisionMO ? (
+                    <>
+                      Comisión calculada:{" "}
+                      <span className="font-bold">
+                        ${((Number(montoMO) * Number(comisionMO)) / 100).toFixed(2)}
+                      </span>
+                      <span className="ml-2 text-emerald-600">({comisionMO}% del monto)</span>
+                    </>
+                  ) : null}
                 </div>
               )}
 

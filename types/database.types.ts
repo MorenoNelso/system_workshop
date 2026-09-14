@@ -31,6 +31,7 @@ export interface Database {
           nombre: string;
           rol: Rol;
           activo: boolean;
+          permisos: Record<string, boolean> | null;
           creado_en: string;
         }>;
         Insert: Insert<{
@@ -38,6 +39,7 @@ export interface Database {
           nombre: string;
           rol: Rol;
           activo: boolean;
+          permisos?: Record<string, boolean> | null;
           creado_en: string;
         }>;
         Update: Update<{
@@ -45,6 +47,7 @@ export interface Database {
           nombre: string;
           rol: Rol;
           activo: boolean;
+          permisos?: Record<string, boolean> | null;
           creado_en: string;
         }>;
         Relationships: [];
@@ -88,7 +91,7 @@ export interface Database {
       };
       motos: {
         Row: Row<{
-          cliente_id: string;
+          cliente_id: string | null;
           marca: string;
           modelo: string;
           anio: number | null;
@@ -98,7 +101,7 @@ export interface Database {
           notas: string | null;
         }>;
         Insert: Insert<{
-          cliente_id: string;
+          cliente_id?: string | null;
           marca: string;
           modelo: string;
           anio: number | null;
@@ -108,14 +111,14 @@ export interface Database {
           notas: string | null;
         }>;
         Update: Update<{
-          cliente_id: string;
-          marca: string;
-          modelo: string;
-          anio: number | null;
-          placa: string | null;
-          cilindraje: string | null;
-          color: string | null;
-          notas: string | null;
+          cliente_id?: string | null;
+          marca?: string;
+          modelo?: string;
+          anio?: number | null;
+          placa?: string | null;
+          cilindraje?: string | null;
+          color?: string | null;
+          notas?: string | null;
         }>;
         Relationships: [];
       };
@@ -155,6 +158,10 @@ export interface Database {
           sku: string | null;
           categoria_id: string | null;
           proveedor_id: string | null;
+          calidad: "original" | "generica";
+          medida: string | null;
+          compatible_con: string | null;
+          notas: string | null;
           stock_actual: number;
           stock_minimo: number;
           precio_costo: number | null;
@@ -164,27 +171,35 @@ export interface Database {
         }>;
         Insert: Insert<{
           nombre: string;
-          sku: string | null;
-          categoria_id: string | null;
-          proveedor_id: string | null;
-          stock_actual: number;
-          stock_minimo: number;
-          precio_costo: number | null;
+          sku?: string | null;
+          categoria_id?: string | null;
+          proveedor_id?: string | null;
+          calidad?: "original" | "generica";
+          medida?: string | null;
+          compatible_con?: string | null;
+          notas?: string | null;
+          stock_actual?: number;
+          stock_minimo?: number;
+          precio_costo?: number | null;
           precio_venta: number;
           moneda_id: string;
-          activo: boolean;
+          activo?: boolean;
         }>;
         Update: Update<{
-          nombre: string;
-          sku: string | null;
-          categoria_id: string | null;
-          proveedor_id: string | null;
-          stock_actual: number;
-          stock_minimo: number;
-          precio_costo: number | null;
-          precio_venta: number;
-          moneda_id: string;
-          activo: boolean;
+          nombre?: string;
+          sku?: string | null;
+          categoria_id?: string | null;
+          proveedor_id?: string | null;
+          calidad?: "original" | "generica";
+          medida?: string | null;
+          compatible_con?: string | null;
+          notas?: string | null;
+          stock_actual?: number;
+          stock_minimo?: number;
+          precio_costo?: number | null;
+          precio_venta?: number;
+          moneda_id?: string;
+          activo?: boolean;
         }>;
         Relationships: [];
       };
@@ -296,6 +311,7 @@ export interface Database {
           repuesto_id: string;
           cantidad: number;
           precio_unitario_aplicado: number;
+          precio_costo_aplicado: number | null;
           moneda_id: string;
         }>;
         Insert: Insert<{
@@ -303,6 +319,7 @@ export interface Database {
           repuesto_id: string;
           cantidad: number;
           precio_unitario_aplicado: number;
+          precio_costo_aplicado?: number | null;
           moneda_id: string;
         }>;
         Update: Update<{
@@ -310,6 +327,7 @@ export interface Database {
           repuesto_id?: string;
           cantidad?: number;
           precio_unitario_aplicado?: number;
+          precio_costo_aplicado?: number | null;
           moneda_id?: string;
         }>;
         Relationships: [];
@@ -323,6 +341,8 @@ export interface Database {
           moneda_id: string;
           porcentaje_comision_aplicado: number | null;
           comision_calculada: number | null;
+          ayudante_id: string | null;
+          ayudante_monto: number | null;
         }>;
         Insert: Insert<{
           orden_id: string;
@@ -332,6 +352,8 @@ export interface Database {
           moneda_id: string;
           porcentaje_comision_aplicado?: number | null;
           comision_calculada?: number | null;
+          ayudante_id?: string | null;
+          ayudante_monto?: number | null;
         }>;
         Update: Update<{
           orden_id?: string;
@@ -341,6 +363,8 @@ export interface Database {
           moneda_id?: string;
           porcentaje_comision_aplicado?: number | null;
           comision_calculada?: number | null;
+          ayudante_id?: string | null;
+          ayudante_monto?: number | null;
         }>;
         Relationships: [];
       };
@@ -352,6 +376,7 @@ export interface Database {
           fuente: string;
           actualizado_por: string | null;
           fecha: string;
+          activa: boolean;
         }>;
         Insert: Insert<{
           moneda_origen_id: string;
@@ -360,6 +385,7 @@ export interface Database {
           fuente?: string;
           actualizado_por?: string | null;
           fecha?: string;
+          activa?: boolean;
         }>;
         Update: Update<{
           moneda_origen_id?: string;
@@ -368,6 +394,7 @@ export interface Database {
           fuente?: string;
           actualizado_por?: string | null;
           fecha?: string;
+          activa?: boolean;
         }>;
         Relationships: [];
       };
@@ -413,6 +440,7 @@ export interface Database {
           repuesto_id: string;
           cantidad: number;
           precio_unitario_aplicado: number;
+          precio_costo_aplicado: number | null;
           moneda_id: string;
         }>;
         Insert: Insert<{
@@ -420,6 +448,7 @@ export interface Database {
           repuesto_id: string;
           cantidad: number;
           precio_unitario_aplicado: number;
+          precio_costo_aplicado?: number | null;
           moneda_id: string;
         }>;
         Update: Update<{
@@ -427,6 +456,7 @@ export interface Database {
           repuesto_id?: string;
           cantidad?: number;
           precio_unitario_aplicado?: number;
+          precio_costo_aplicado?: number | null;
           moneda_id?: string;
         }>;
         Relationships: [];
@@ -485,12 +515,87 @@ export interface Database {
         }>;
         Relationships: [];
       };
+      gastos: {
+        Row: Row<{
+          descripcion: string;
+          monto: number;
+          moneda_id: string;
+          categoria: string;
+          fecha: string;
+          registrado_por: string;
+          created_at: string;
+        }>;
+        Insert: Insert<{
+          descripcion: string;
+          monto: number;
+          moneda_id: string;
+          categoria: string;
+          fecha?: string;
+          registrado_por: string;
+          created_at?: string;
+        }>;
+        Update: Update<{
+          descripcion?: string;
+          monto?: number;
+          moneda_id?: string;
+          categoria?: string;
+          fecha?: string;
+          registrado_por?: string;
+          created_at?: string;
+        }>;
+        Relationships: [];
+      };
+      deducciones_mecanico: {
+        Row: Row<{
+          empleado_id: string;
+          orden_id: string | null;
+          descripcion: string;
+          costo: number;
+          moneda_id: string;
+          fecha: string;
+          registrado_por: string;
+          created_at: string;
+        }>;
+        Insert: Insert<{
+          empleado_id: string;
+          orden_id?: string | null;
+          descripcion: string;
+          costo: number;
+          moneda_id: string;
+          fecha?: string;
+          registrado_por: string;
+          created_at?: string;
+        }>;
+        Update: Update<{
+          empleado_id?: string;
+          orden_id?: string | null;
+          descripcion?: string;
+          costo?: number;
+          moneda_id?: string;
+          fecha?: string;
+          registrado_por?: string;
+          created_at?: string;
+        }>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       get_user_role: {
         Args: Record<string, never>;
         Returns: Rol | null;
+      };
+      try_lock: {
+        Args: { lock_id: number };
+        Returns: boolean;
+      };
+      check_rate_limit: {
+        Args: { p_id: string; p_max: number; p_window_ms: number };
+        Returns: boolean;
+      };
+      cleanup_rate_limits: {
+        Args: Record<string, never>;
+        Returns: void;
       };
     };
     Enums: Record<string, never>;

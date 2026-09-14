@@ -8,7 +8,10 @@ import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { rateLimitLogin, rateLimitMfa, rateLimitRecuperacion } from "@/lib/rate-limit";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL
+  ?? (process.env.NODE_ENV === "production"
+    ? (() => { throw new Error("NEXT_PUBLIC_SITE_URL no está definido en producción"); })()
+    : "http://localhost:3000");
 
 /* ------------------------------------------------------------------ */
 /* Login + MFA                                                         */
@@ -53,7 +56,7 @@ export async function login(
     return { errors: z.flattenError(parsed.error).fieldErrors };
   }
 
-  if (!rateLimitLogin(parsed.data.email)) {
+  if (!(await rateLimitLogin(parsed.data.email))) {
     return { message: "Demasiados intentos fallidos. Espera 15 minutos e intenta de nuevo." };
   }
 
@@ -96,7 +99,7 @@ export async function verificarMfa(
   } = await supabase.auth.getUser();
   if (!user) return { message: "Sesi\u00f3n no v\u00e1lida. Vuelve a iniciar sesi\u00f3n." };
 
-  if (!rateLimitMfa(user.id)) {
+  if (!(await rateLimitMfa(user.id))) {
     return { message: "Demasiados intentos. Espera 15 minutos e intenta de nuevo." };
   }
 
@@ -157,7 +160,7 @@ export async function solicitarRecuperacion(
     return { message: parsed.error.issues[0]?.message ?? "Correo inv\u00e1lido." };
   }
 
-  if (!rateLimitRecuperacion(parsed.data.email)) {
+  if (!(await rateLimitRecuperacion(parsed.data.email))) {
     return { message: "Demasiadas solicitudes. Espera 15 minutos e intenta de nuevo." };
   }
 

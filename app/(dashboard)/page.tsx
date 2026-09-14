@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { VentasChart } from "@/components/dashboard/ventas-chart";
 import { VentasRango } from "@/components/dashboard/ventas-rango";
+import { GananciasView } from "@/components/dashboard/ganancias";
 import { requireUser } from "@/lib/auth/session";
 import {
   getAlertasStock,
@@ -279,6 +280,21 @@ export default async function DashboardPage() {
                 {ingresosMecanicos && (
                   <VentasRango moneda={ingresosMecanicos.moneda} />
                 )}
+              </div>
+            </div>
+          </section>
+
+          {/* Ganancias */}
+          <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
+            <div className="p-5">
+              <h2 className="text-sm font-semibold text-zinc-900">
+                Ganancias
+              </h2>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Ingresos menos egresos (costo de repuestos) y comisión de mecánicos.
+              </p>
+              <div className="mt-4">
+                <GananciasView />
               </div>
             </div>
           </section>

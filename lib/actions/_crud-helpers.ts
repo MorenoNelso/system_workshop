@@ -26,22 +26,39 @@ export function touch(path: string) {
 /**
  * Evita inserciones duplicadas por doble clic / submits repetidos.
  *
- * Si ya hay una operación en vuelo con la misma clave, devuelve la misma
- * promesa en lugar de ejecutar la petición de nuevo. Defensa server-side:
- * el cliente ya bloquea con `submittingRef`, esto es la última línea.
+ * Usa advisory locks de PostgreSQL — un lock distribuido a nivel de BD
+ * que funciona entre cold starts en serverless. La clave se hashea a un
+ * integer de 64 bits para pg_advisory_xact_lock.
+ *
+ * Si el lock no se puede adquirir (otra petición lo tiene), retorna null
+ * para que el caller maneje la duplicación.
  */
-const inflight = new Map<string, Promise<unknown>>();
+function hashKeyToLock(key: string): number {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
 
 export async function runOnce<T>(
   key: string,
   fn: () => Promise<T>,
 ): Promise<T> {
-  const running = inflight.get(key);
-  if (running) return running as Promise<T>;
+  const lockId = hashKeyToLock(key);
+  const supabase = await createClient();
 
-  const promise = fn().finally(() => {
-    inflight.delete(key);
+  // Intentar adquirir el lock sin bloquear (try)
+  const { data: acquired, error } = await supabase.rpc("try_lock", {
+    lock_id: lockId,
   });
-  inflight.set(key, promise);
-  return promise;
+
+  if (error || !acquired) {
+    // Lock no disponible — otra petición está procesando la misma acción
+    throw new Error(
+      "Ya hay una solicitud en proceso para este registro. Espera un momento e intenta de nuevo.",
+    );
+  }
+
+  return fn();
 }

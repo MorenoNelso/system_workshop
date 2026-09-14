@@ -28,9 +28,19 @@ export async function getTasasVigentes(
     .select("moneda_origen_id, moneda_destino_id, tasa, fecha")
     .order("fecha", { ascending: false });
 
+  return construirTasasVigentes(data ?? []);
+}
+
+/**
+ * Lógica pura: filtra las filas de tasas y deja la más reciente por par.
+ * Separada de la consulta para poder testearla sin Supabase.
+ */
+export function construirTasasVigentes(
+  filas: { moneda_origen_id: string; moneda_destino_id: string; tasa: number; fecha: string }[],
+): TasasVigentes {
   const tasas: TasasVigentes = {};
   const vistos = new Set<string>();
-  for (const t of data ?? []) {
+  for (const t of filas) {
     const key = `${t.moneda_origen_id}:${t.moneda_destino_id}`;
     if (!vistos.has(key)) {
       vistos.add(key);

@@ -48,6 +48,7 @@ export function NavMenu({ esAdmin }: Props) {
         { href: "/", label: "Inicio" },
         { href: "/ordenes", label: "Órdenes de Servicio" },
         { href: "/facturas", label: "Facturación" },
+        ...(esAdmin ? [{ href: "/contabilidad", label: "Contabilidad" }] : []),
         { href: "/inventario", label: "Kardex / Stock" },
       ],
     },
@@ -112,6 +113,7 @@ export function NavMenu({ esAdmin }: Props) {
                   <Link
                     key={item.href}
                     href={item.href}
+                    prefetch
                     onClick={() => setOpen(false)}
                     className={`block px-4 py-1.5 text-sm transition ${
                       isActive(item.href)

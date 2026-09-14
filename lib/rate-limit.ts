@@ -1,68 +1,62 @@
 /**
- * Rate limiter en memoria (basic).
+ * Rate limiter distribuido via Supabase (funciona en serverless).
  *
- * Aviso: en entornos serverless (Netlify) cada invocacion puede
- * arrancar en una instancia nueva, por lo que este limite es
- * best-effort. Supabase Auth ya tiene rate limiting propio para
- * los endpoints de login/OTP. Para produccion robusta considerar
- * Upstash Redis (ver .env.example).
+ * Usa la tabla rate_limits (docs/tabla-rate-limits.sql) para persistir
+ * contadores entre cold starts. La función RPC check_rate_limit()
+ * maneja la lógica atómicamente en la BD.
+ *
+ * Fallback: si la BD no está disponible, permite la acción
+ * (degrada a "sin rate limiting" en vez de bloquear usuarios legítimos).
  */
 
-const buckets = new Map<string, { count: number; resetAt: number }>();
+import { createClient } from "@/lib/supabase/server";
 
-const SWEEP_INTERVAL = 60_000;
-let lastSweep = Date.now();
-
-function sweep() {
-  const now = Date.now();
-  if (now - lastSweep < SWEEP_INTERVAL) return;
-  lastSweep = now;
-  for (const [key, entry] of buckets) {
-    if (entry.resetAt <= now) buckets.delete(key);
-  }
-}
-
-/**
- * Devuelve `true` si la accion esta permitida, `false` si se excedio el limite.
- *
- * @param identifier  clave unica (ej. `login:email`, `factura:userId`)
- * @param max          maximo de intentos en la ventana
- * @param windowMs     tamano de la ventana en milisegundos
- */
-export function rateLimit(
+async function checkLimit(
   identifier: string,
   max: number,
   windowMs: number,
-): boolean {
-  sweep();
-  const now = Date.now();
-  const entry = buckets.get(identifier);
+): Promise<boolean> {
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("check_rate_limit", {
+      p_id: identifier,
+      p_max: max,
+      p_window_ms: windowMs,
+    });
 
-  if (!entry || entry.resetAt <= now) {
-    buckets.set(identifier, { count: 1, resetAt: now + windowMs });
-    return true;
+    if (error) return true; // fallback: permitir
+    return data === true;
+  } catch {
+    return true; // fallback: permitir
   }
+}
 
-  entry.count += 1;
-  return entry.count <= max;
+/** Limpieza de registros expirados (llamar periódicamente). */
+export async function cleanupRateLimits(): Promise<void> {
+  try {
+    const supabase = await createClient();
+    await supabase.rpc("cleanup_rate_limits");
+  } catch {
+    // ignorar errores de limpieza
+  }
 }
 
 /** Limite estricto para intentos de login (5 por 15 min). */
-export function rateLimitLogin(email: string): boolean {
-  return rateLimit(`login:${email}`, 5, 15 * 60_000);
+export function rateLimitLogin(email: string): Promise<boolean> {
+  return checkLimit(`login:${email}`, 5, 15 * 60_000);
 }
 
 /** Limite para verificacion MFA (5 por 15 min). */
-export function rateLimitMfa(userId: string): boolean {
-  return rateLimit(`mfa:${userId}`, 5, 15 * 60_000);
+export function rateLimitMfa(userId: string): Promise<boolean> {
+  return checkLimit(`mfa:${userId}`, 5, 15 * 60_000);
 }
 
 /** Limite para solicitud de recuperacion (3 por 15 min). */
-export function rateLimitRecuperacion(email: string): boolean {
-  return rateLimit(`recuperar:${email}`, 3, 15 * 60_000);
+export function rateLimitRecuperacion(email: string): Promise<boolean> {
+  return checkLimit(`recuperar:${email}`, 3, 15 * 60_000);
 }
 
 /** Limite para creacion de facturas (10 por 15 min por usuario). */
-export function rateLimitFactura(userId: string): boolean {
-  return rateLimit(`factura:${userId}`, 10, 15 * 60_000);
+export function rateLimitFactura(userId: string): Promise<boolean> {
+  return checkLimit(`factura:${userId}`, 10, 15 * 60_000);
 }

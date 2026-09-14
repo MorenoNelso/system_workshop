@@ -4,6 +4,10 @@ import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { SeguridadClient } from "./seguridad-client";
 
+
+export const instant = false;
+
+
 export const metadata: Metadata = {
   title: "Seguridad — Pacho Motos",
 };

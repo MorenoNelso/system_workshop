@@ -1,51 +1,93 @@
-# Sistema Pacho Taller - Workshop Management System
+# Pacho Motos — Sistema de Gestión
 
-> Repositorio para el control de versiones del sistema de Pacho.  
-> Sistema definitivo — cuidado con el commit y push en la terminal.
+Sistema de gestión integral para taller de motos. 1 taller, 1–3 usuarios (admin/dueño + colaboradores/mecánicos).
 
----
+## Stack
 
-## Descripción
+| Capa | Tecnología |
+|---|---|
+| Frontend + Backend | Next.js 16 (App Router, Turbopack), TypeScript |
+| Base de datos + Auth | Supabase (PostgreSQL + RLS) |
+| Validación | Zod v4 |
+| PWA / Offline | Serwist |
+| Monitoreo | Sentry |
+| Testing | Vitest |
+| Hosting | Netlify |
 
-Sistema de gestión para taller de motos, construido con [Next.js](https://nextjs.org), Supabase y TypeScript.
+## Módulos
 
-## Getting Started
+### Taller
+- **Órdenes de servicio** — diagnóstico, repuestos, mano de obra, snapshots de precio
+- **Facturación** — desde órdenes cerradas o venta directa, sin PDF
+- **Inventario / Kardex** — movimientos de stock con trazabilidad
+- **Dashboard** — alertas de stock, pipeline de órdenes, gráfico de ventas, ingresos por mecánico
 
-Primero, copia el archivo de entorno y configura tus variables:
+### Catálogo
+- **Clientes** — CRUD con motos asociadas
+- **Motos** — marcas, modelos, placas, colores
+- **Repuestos** — stock, precio costo/venta, calidad (original/genérica)
+- **Categorías** y **Proveedores**
+
+### Administración
+- **Empleados / Mecánicos** — vinculación salarial, comisiones, ayudantes
+- **Contabilidad** — retiros personales del dueño, deducciones a mecánicos, ganancia neta
+- **Tasas de cambio** — manual (COP, USD, VES)
+- **Usuarios** — roles admin/colaborador con permisos granulares
+- **Auditoría** — logs automáticos de acciones críticas
+- **Seguridad** — 2FA/TOTP, rate limiting, CSP
+
+### Autenticación
+- Login con email + contraseña
+- 2FA/TOTP (obligatorio para admin)
+- Recuperación por código OTP numérico
+
+## Instalación
 
 ```bash
-cp .env.example .env
-```
-
-Luego instala las dependencias y corre el servidor de desarrollo:
-
-```bash
+cp .env.example .env.local
+# Pegar las keys de Supabase en .env.local
 npm install
 npm run dev
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) en tu navegador para ver el resultado.
+Abre [http://localhost:3000](http://localhost:3000).
 
-## Stack Tecnológico
+## Scripts
 
-- **Framework**: Next.js (App Router)
-- **Base de datos**: Supabase (PostgreSQL)
-- **Lenguaje**: TypeScript
-- **Autenticación**: Supabase Auth
+| Comando | Descripción |
+|---|---|
+| `npm run dev` | Servidor de desarrollo (Turbopack) |
+| `npm run build` | Build de producción |
+| `npm run start` | Iniciar en producción |
+| `npm run lint` | ESLint |
+| `npm run test` | Vitest (53 tests) |
 
-## Módulos del Sistema
+## Base de datos
 
-- 🔐 Autenticación (Login / Recuperación de contraseña)
-- 👥 Clientes
-- 📋 Órdenes de trabajo
-- 🧾 Facturas
-- 📦 Inventario
+19 tablas con RLS activo. Documentación en `docs/`:
 
-## Documentación
+- `esquema-bd-taller-motos.md` — esquema completo
+- `funciones-triggers-taller-motos.sql` — triggers de negocio
+- `migracion-*.sql` — migraciones post-esquema
 
-Consulta la carpeta `/docs` para ver:
+## Seguridad
 
-- Esquema de base de datos
-- Funciones y triggers SQL
-- Manual de mantenimiento
-- Prompt maestro del proyecto
+- RLS en todas las tablas
+- Roles: `administrador` / `colaborador`
+- Rate limiting distribuido (Supabase RPC)
+- CSP headers configurados
+- `.env` nunca se commitea
+
+## Paleta
+
+- Azul vivido `#1234ab` (brand-600) — botones, links
+- Azul oscuro `#2e3747` (brand-900) — fondos
+- Neutros: `zinc-*`
+
+## Deploy
+
+Hosting en Netlify. Configuración en `netlify.toml`.
+
+## Licencia
+
+Privado — Pacho Motos.

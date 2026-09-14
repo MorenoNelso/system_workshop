@@ -19,9 +19,8 @@ export function MotosClient({ initialRows, clientes }: Props) {
       fields: [
         {
           name: "cliente_id",
-          label: "Cliente",
+          label: "Cliente (opcional)",
           type: "select",
-          required: true,
           options: clientes.map((c) => ({
             value: c.id,
             label: c.nombre,

@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
+import { withSerwist } from "@serwist/turbopack";
 
 const isDev = process.env.NODE_ENV === "development";
 
@@ -29,11 +30,14 @@ const securityHeaders = [
     value: [
       "default-src 'self'",
       // React dev necesita `unsafe-eval` para debug (callstacks). En producción no.
+      // NOTA: 'unsafe-inline' es necesario para React hydration (__NEXT_DATA__, chunks).
+      // Para eliminarlo, implementar nonces por request via middleware + layout.
+      // Riesgo aceptado: usuarios internos (1-3 personas), no público.
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://xornnmlgufdlscxhgyyp.supabase.co",
+      "img-src 'self' data: https://xornnmlgufdlscxhgyyp.supabase.co https://o4511990296346624.ingest.us.sentry.io",
       "font-src 'self'",
-      "connect-src 'self'",
+      "connect-src 'self' https://xornnmlgufdlscxhgyyp.supabase.co wss://xornnmlgufdlscxhgyyp.supabase.co https://o4511990296346624.ingest.us.sentry.io",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -47,6 +51,7 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  cacheComponents: true,
   async headers() {
     return [
       {
@@ -65,11 +70,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default withSentryConfig(nextConfig, {
-  org: process.env.SENTRY_ORG,
-  project: process.env.SENTRY_PROJECT,
-  authToken: process.env.SENTRY_AUTH_TOKEN,
-  silent: true,
-  sourcemaps: { disable: true },
-  telemetry: false,
-});
+export default withSentryConfig(
+  withSerwist(nextConfig),
+  {
+    org: process.env.SENTRY_ORG,
+    project: process.env.SENTRY_PROJECT,
+    authToken: process.env.SENTRY_AUTH_TOKEN,
+    silent: true,
+    sourcemaps: { disable: true },
+    telemetry: false,
+  },
+);
