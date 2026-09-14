@@ -71,7 +71,8 @@ export async function updateCliente(
   const parsed = validate(clienteSchema, raw);
   if (!parsed.ok) return parsed;
   const supabase = await db();
-  const { id: _id, ...updateData } = parsed.data;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { id: _, ...updateData } = parsed.data;
   const { data, error } = await supabase
     .from("clientes")
     .update(updateData)

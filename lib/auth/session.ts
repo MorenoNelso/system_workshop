@@ -133,9 +133,14 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   }
 
   // Sesión débil (2FA pendiente): no cuenta como autenticado.
-  const { data: aal } =
-    await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2") return null;
+  try {
+    const { data: aal } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+    if (aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2") return null;
+  } catch {
+    // Offline: no podemos verificar MFA, asumir OK
+    console.warn("[session] getAuthenticatorAssuranceLevel failed (network?)");
+  }
 
   const { data, error } = await supabase
     .from("usuarios")
@@ -145,7 +150,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
 
   if (error || !data || !data.activo) {
     // Si es error de red (no RLS/DB), intentar cookies
-    if (error?.message?.includes("fetch") || error?.code === "PGRST301") {
+    if (error?.message?.includes("fetch") || error?.code === "PGRST301" || !error?.code) {
       return getUserFromCookies();
     }
     console.error("[Auth] No se encontró usuario en public.usuarios o error RLS:", {
@@ -161,7 +166,11 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
         extra: { authUserId: user.id, authUserEmail: user.email },
       },
     );
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Offline: no se puede cerrar sesión
+    }
     return null;
   }
 
