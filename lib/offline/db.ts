@@ -13,7 +13,7 @@ export interface OfflineAction {
   action: string;
   data: unknown;
   timestamp: number;
-  status: "pending" | "synced" | "failed";
+  status: "pending" | "processing" | "synced" | "failed";
   error?: string;
   retries: number;
 }
@@ -71,7 +71,7 @@ export async function enqueueAction(
 }
 
 /**
- * Obtiene todas las acciones pendientes (ordenadas por timestamp).
+ * Obtiene todas las acciones pendientes (NO processing — para evitar duplicados).
  */
 export async function getPendingActions(): Promise<OfflineAction[]> {
   const db = await openDB();
@@ -90,6 +90,32 @@ export async function getPendingActions(): Promise<OfflineAction[]> {
     request.onerror = () => {
       db.close();
       reject(request.error);
+    };
+  });
+}
+
+/**
+ * Marca una acción como "processing" (siendo procesada).
+ * Esto evita que otra instancia de sync la procese duplicadamente.
+ */
+export async function markProcessing(id: number): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(STORE_NAME, "readwrite");
+    const store = tx.objectStore(STORE_NAME);
+    const getReq = store.get(id);
+    getReq.onsuccess = () => {
+      const item = getReq.result as OfflineAction;
+      if (item) {
+        item.status = "processing";
+        store.put(item);
+      }
+      db.close();
+      resolve();
+    };
+    getReq.onerror = () => {
+      db.close();
+      reject(getReq.error);
     };
   });
 }
@@ -167,7 +193,9 @@ export async function removeAction(id: number): Promise<void> {
 }
 
 /**
- * Elimina todas las acciones sincronizadas o fallidas (limpieza periódica).
+ * Elimina acciones sincronizadas y resetea las "processing" atascadas.
+ * Si una acción lleva más de 30 segundos en "processing", se asume
+ * que el sync fue interrumpido (reload) y se vuelve a "pending".
  */
 export async function cleanupSyncedActions(): Promise<number> {
   const db = await openDB();
@@ -175,23 +203,33 @@ export async function cleanupSyncedActions(): Promise<number> {
     const tx = db.transaction(STORE_NAME, "readwrite");
     const store = tx.objectStore(STORE_NAME);
     const index = store.index("status");
-    let deleted = 0;
+    let affected = 0;
+    const now = Date.now();
+    const STUCK_THRESHOLD_MS = 30_000; // 30 segundos
 
     const request = index.openCursor();
     request.onsuccess = () => {
       const cursor = request.result;
       if (!cursor) {
         db.close();
-        resolve(deleted);
+        resolve(affected);
         return;
       }
       const val = cursor.value;
       if (val.status === "synced") {
         cursor.delete();
-        deleted++;
+        affected++;
       } else if (val.status === "failed" && (val.retries ?? 0) >= 3) {
         cursor.delete();
-        deleted++;
+        affected++;
+      } else if (
+        val.status === "processing" &&
+        now - val.timestamp > STUCK_THRESHOLD_MS
+      ) {
+        // Sync interrumpido: resetear a pending para reintentar
+        val.status = "pending";
+        store.put(val);
+        affected++;
       }
       cursor.continue();
     };
@@ -224,7 +262,7 @@ export async function getPendingCount(): Promise<number> {
 }
 
 /**
- * Obtiene todas las acciones pendientes Y fallidas (para UI).
+ * Obtiene todas las acciones pendientes, processing Y fallidas (para UI).
  */
 export async function getPendingAndFailedActions(): Promise<OfflineAction[]> {
   const db = await openDB();
@@ -234,7 +272,7 @@ export async function getPendingAndFailedActions(): Promise<OfflineAction[]> {
     const request = store.getAll();
     request.onsuccess = () => {
       const results = (request.result as OfflineAction[])
-        .filter((a) => a.status === "pending" || a.status === "failed")
+        .filter((a) => a.status === "pending" || a.status === "processing" || a.status === "failed")
         .sort((a, b) => a.timestamp - b.timestamp);
       db.close();
       resolve(results);

@@ -27,20 +27,27 @@ export async function createCliente(raw: unknown): Promise<ActionResult> {
 
   const supabase = await db();
 
-  // Prevenir duplicados: verificar si ya existe un cliente con mismo nombre y teléfono
-  const { data: existing } = await supabase
+  // Prevenir duplicados: buscar cliente con mismo nombre y teléfono (case-insensitive)
+  const { data: candidates } = await supabase
     .from("clientes")
-    .select("id")
-    .eq("nombre", parsed.data.nombre)
-    .eq("telefono", parsed.data.telefono)
-    .maybeSingle();
+    .select("id, nombre, telefono")
+    .ilike("nombre", parsed.data.nombre.trim())
+    .limit(20);
 
-  if (existing) {
-    // Ya existe — retornar el existente como si fuera nuevo (idempotente)
+  const nombreLower = parsed.data.nombre.trim().toLowerCase();
+  const telLower = parsed.data.telefono.trim().toLowerCase();
+  const match = candidates?.find(
+    (c) =>
+      c.nombre.trim().toLowerCase() === nombreLower &&
+      c.telefono.trim().toLowerCase() === telLower,
+  );
+
+  if (match) {
+    // Ya existe — retornar el existente (idempotente)
     const { data } = await supabase
       .from("clientes")
       .select("*")
-      .eq("id", existing.id)
+      .eq("id", match.id)
       .single();
     return { ok: true, data };
   }

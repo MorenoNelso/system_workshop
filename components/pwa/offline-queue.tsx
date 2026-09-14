@@ -69,16 +69,10 @@ export function OfflineQueue() {
     
     function handleOnline() {
       load();
-      // Auto-sincronizar al reconectar
+      // Auto-sincronizar al reconectar (sin reload — el usuario
+      // puede hacer clic en "Sincronizar" si quiere refrescar)
       getPendingCount().then((c) => {
-        if (c > 0) syncPendingActions().then((result) => {
-          if (mounted) load();
-          // Si se sincronizaron acciones, recargar INMEDIATAMENTE
-          // para que los Server Components reflejen datos reales
-          if (result.synced > 0) {
-            window.location.reload();
-          }
-        });
+        if (c > 0) syncPendingActions().then(() => { if (mounted) load(); });
       });
     }
     window.addEventListener("online", handleOnline);

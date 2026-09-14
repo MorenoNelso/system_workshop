@@ -10,6 +10,7 @@ import {
   getPendingActions,
   markSynced,
   markFailed,
+  markProcessing,
   getPendingCount,
   getPendingAndFailedActions,
   cleanupSyncedActions,
@@ -95,6 +96,10 @@ export async function syncPendingActions(): Promise<{
         errors.push(`Handler no registrado: ${action.action}`);
         continue;
       }
+
+      // Marcar como "processing" ANTES de ejecutar para evitar
+      // que otra instancia de sync la procese duplicadamente
+      await markProcessing(action.id!);
 
       try {
         console.log(`[offline] Sincronizando: ${action.action}`, action.data);
