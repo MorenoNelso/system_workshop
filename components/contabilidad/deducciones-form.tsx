@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createDeduccion } from "@/lib/actions/deducciones";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 import { listMecanicosActivos } from "@/lib/actions/empleados";
 
 interface Mecanico {
@@ -42,7 +42,11 @@ export default function DeduccionesForm({ onCreated, monedas }: { onCreated: () 
     };
 
     startTransition(async () => {
-      const result = await createDeduccion(raw);
+      const result = await executeOrEnqueue("createDeduccion", raw);
+      if ("offline" in result && result.offline) {
+        setError("Sin conexión. Se guardará cuando vuelva internet.");
+        return;
+      }
       if (result.ok) {
         formRef.current?.reset();
         onCreated();

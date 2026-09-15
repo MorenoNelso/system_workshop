@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { createGasto } from "@/lib/actions/gastos";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 
 const CATEGORIAS = [
   { value: "mercado", label: "Mercado" },
@@ -38,7 +38,11 @@ export default function GastosForm({ onCreated, monedas }: { onCreated: () => vo
     };
 
     startTransition(async () => {
-      const result = await createGasto(raw);
+      const result = await executeOrEnqueue("createGasto", raw);
+      if ("offline" in result && result.offline) {
+        setError("Sin conexión. Se guardará cuando vuelva internet.");
+        return;
+      }
       if (result.ok) {
         formRef.current?.reset();
         onCreated();

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { createOrden, deleteOrden } from "@/lib/actions/ordenes";
-import { createMoto } from "@/lib/actions/motos";
+import { deleteOrden } from "@/lib/actions/ordenes";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 
 interface ClienteLite {
   id: string;
@@ -100,9 +100,13 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
       fecha_entrega_estimada: formData.get("fecha_entrega_estimada") || null,
     };
 
-    const res = await createOrden(raw);
+    const res = await executeOrEnqueue("createOrden", raw);
     setGuardando(false);
 
+    if ("offline" in res && res.offline) {
+      setError("Sin conexión. Se guardará cuando vuelva internet.");
+      return;
+    }
     if (!res.ok) {
       setError(res.error);
       return;
@@ -110,9 +114,9 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
 
     setModalOpen(false);
     router.refresh();
-    const data = res.data as { id?: string } | undefined;
-    if (data?.id) {
-      router.push(`/ordenes/${data.id}`);
+    const ordenData = res as { ok: true; data?: { id?: string } };
+    if (ordenData.data?.id) {
+      router.push(`/ordenes/${ordenData.data.id}`);
     }
   }
 
@@ -124,18 +128,22 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
     setGuardandoMoto(true);
     setErrorMoto(null);
     // La moto se crea SIN cliente (el cliente es de la orden, no de la moto).
-    const res = await createMoto({
+    const res = await executeOrEnqueue("createMoto", {
       marca: motoMarca,
       modelo: motoModelo,
       cilindraje: motoCilindraje || null,
       color: motoColor || null,
     });
     setGuardandoMoto(false);
+    if ("offline" in res && res.offline) {
+      setErrorMoto("Sin conexión. Se guardará cuando vuelva internet.");
+      return;
+    }
     if (!res.ok) {
       setErrorMoto(res.error);
       return;
     }
-    const nueva = res.data as MotoLite;
+    const nueva = (res as { ok: true; data: MotoLite }).data;
     setMotosState((prev) => [...prev, nueva]);
     setMotoSel(nueva.id);
     setCreandoMoto(false);

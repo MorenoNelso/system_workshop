@@ -4,7 +4,8 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
-import { anularFactura, registrarPago } from "@/lib/actions/facturas";
+import { anularFactura } from "@/lib/actions/facturas";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 import type {
   FacturaDetail,
   ManoObraDetalle,
@@ -91,7 +92,7 @@ export function FacturaDetalleView({
     setGuardando(true);
     setError(null);
 
-    const res = await registrarPago({
+    const res = await executeOrEnqueue("registrarPago", {
       factura_id: factura.id,
       monto: Number(montoPago),
       moneda_id: monedaPagoId,
@@ -99,6 +100,10 @@ export function FacturaDetalleView({
     });
     setGuardando(false);
 
+    if ("offline" in res && res.offline) {
+      setError("Sin conexión. Se guardará cuando vuelva internet.");
+      return;
+    }
     if (!res.ok) {
       setError(res.error);
       return;

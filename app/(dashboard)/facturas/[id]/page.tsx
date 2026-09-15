@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 
 import { FacturaDetalleView } from "@/components/facturas/factura-detalle-view";
 import { getFacturaById } from "@/lib/actions/facturas";
 import { listMonedas } from "@/lib/actions/tasas";
 import { getConfiguracion } from "@/lib/actions/config";
 import { convertir, getTasasVigentes } from "@/lib/currency";
-import { requireUser } from "@/lib/auth/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { safeQuery } from "@/lib/safe-query";
 
 export const metadata: Metadata = { title: "Factura — Pacho Motos" };
 
@@ -17,15 +17,36 @@ export default async function FacturaDetallePage(props: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await props.params;
-  const user = await requireUser();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const user = await safeQuery(getCurrentUser() as any, { id: "", email: "", nombre: "", rol: "administrador" as const, activo: true, permisos: null });
   const esAdmin = user.rol === "administrador";
 
-  const factura = await getFacturaById(id);
-  if (!factura) notFound();
+  const factura = await safeQuery(getFacturaById(id), null);
+  if (!factura) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-20">
+        <p className="text-sm text-zinc-500">
+          No se pudo cargar la factura. Sin conexión.
+        </p>
+      </div>
+    );
+  }
 
-  const monedas = await listMonedas();
-  const tasas = await getTasasVigentes(await createClient());
-  const config = await getConfiguracion();
+  const monedas = await safeQuery(listMonedas());
+
+  let tasas = {};
+  try {
+    tasas = await getTasasVigentes(await createClient());
+  } catch {
+    // Offline
+  }
+
+  let config = { nombre_taller: "Pacho Motos", logo_watermark_url: "" as string | null };
+  try {
+    config = await getConfiguracion();
+  } catch {
+    // Offline
+  }
 
   // Equivalencias del total en otras monedas (solo visual, tasa vigente).
   const equivalencias = monedas

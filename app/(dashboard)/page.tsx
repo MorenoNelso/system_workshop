@@ -4,7 +4,7 @@ import Link from "next/link";
 import { VentasChart } from "@/components/dashboard/ventas-chart";
 import { VentasRango } from "@/components/dashboard/ventas-rango";
 import { GananciasView } from "@/components/dashboard/ganancias";
-import { requireUser } from "@/lib/auth/session";
+import { getCurrentUser } from "@/lib/auth/session";
 import {
   getAlertasStock,
   getIngresosPorMecanico,
@@ -12,6 +12,7 @@ import {
   getResumenOrdenes,
   getVentasSemanales,
 } from "@/lib/actions/dashboard";
+import { safeQuery } from "@/lib/safe-query";
 
 export const metadata: Metadata = { title: "Dashboard — Pacho Motos" };
 
@@ -44,16 +45,19 @@ function PipelineBlock({
 }
 
 export default async function DashboardPage() {
-  const user = await requireUser();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const user = await safeQuery(getCurrentUser() as any, { id: "", email: "", nombre: "Usuario", rol: "administrador" as const, activo: true, permisos: null });
   const esAdmin = user.rol === "administrador";
+
+  const emptyResumen = { recibido: 0, en_proceso: 0, terminado: 0, entregado: 0 };
 
   const [alertas, resumen, ventasSemanales, ingresosMecanicos, miProduccion] =
     await Promise.all([
-      getAlertasStock(),
-      getResumenOrdenes(),
-      esAdmin ? getVentasSemanales(12) : Promise.resolve(null),
-      esAdmin ? getIngresosPorMecanico() : Promise.resolve(null),
-      !esAdmin ? getMiProduccion(user.id) : Promise.resolve(null),
+      safeQuery(getAlertasStock()),
+      safeQuery(getResumenOrdenes(), emptyResumen),
+      safeQuery(esAdmin ? getVentasSemanales(12) : Promise.resolve(null), null),
+      safeQuery(esAdmin ? getIngresosPorMecanico() : Promise.resolve(null), null),
+      safeQuery(!esAdmin ? getMiProduccion(user.id) : Promise.resolve(null), null),
     ]);
 
   const hoy = new Date().toLocaleDateString("es-CO", {

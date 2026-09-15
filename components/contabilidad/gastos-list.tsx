@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { listGastos, deleteGasto } from "@/lib/actions/gastos";
+import { listGastos } from "@/lib/actions/gastos";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 
 interface GastoRow {
   id: string;
@@ -29,7 +30,12 @@ export default function GastosList() {
 
   async function handleDelete(id: string) {
     startTransition(async () => {
-      const result = await deleteGasto(id);
+      const result = await executeOrEnqueue("deleteGasto", { id });
+      if ("offline" in result && result.offline) {
+        setError("Sin conexión. Se guardará cuando vuelva internet.");
+        setTimeout(() => setError(null), 4000);
+        return;
+      }
       if (result.ok) {
         setGastos((prev) => prev.filter((g) => g.id !== id));
         router.refresh();

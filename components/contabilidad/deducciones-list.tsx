@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { listDeducciones, deleteDeduccion } from "@/lib/actions/deducciones";
+import { listDeducciones } from "@/lib/actions/deducciones";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 
 interface DeduccionRow {
   id: string;
@@ -30,7 +31,12 @@ export default function DeduccionesList() {
 
   async function handleDelete(id: string) {
     startTransition(async () => {
-      const result = await deleteDeduccion(id);
+      const result = await executeOrEnqueue("deleteDeduccion", { id });
+      if ("offline" in result && result.offline) {
+        setError("Sin conexión. Se guardará cuando vuelva internet.");
+        setTimeout(() => setError(null), 4000);
+        return;
+      }
       if (result.ok) {
         setDeducciones((prev) => prev.filter((d) => d.id !== id));
         router.refresh();

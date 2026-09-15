@@ -3,13 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  agregarManoObraAOrden,
-  agregarRepuestoAOrden,
-  eliminarManoObraDeOrden,
-  eliminarRepuestoDeOrden,
-  updateEstadoOrden,
-} from "@/lib/actions/ordenes";
+import { executeOrEnqueue } from "@/lib/offline/queue";
 
 type EstadoOrden = "recibido" | "en_proceso" | "terminado" | "entregado";
 
@@ -128,8 +122,13 @@ export function OrdenDetalleView({
   // Cambiar estado de la orden
   async function handleCambioEstado(nuevoEstado: "recibido" | "en_proceso" | "terminado" | "entregado") {
     setCambiandoEstado(true);
-    const res = await updateEstadoOrden(orden.id, nuevoEstado);
+    const res = await executeOrEnqueue("updateEstadoOrden", { orden_id: orden.id, nuevo_estado: nuevoEstado });
     setCambiandoEstado(false);
+    if ("offline" in res && res.offline) {
+      setErrorEstado("Sin conexión. Se guardará cuando vuelva internet.");
+      setEstado(nuevoEstado);
+      return;
+    }
     if (res.ok) {
       setEstado(nuevoEstado);
       router.refresh();
@@ -144,13 +143,17 @@ export function OrdenDetalleView({
     setGuardandoRepuesto(true);
     setErrorRepuesto(null);
 
-    const res = await agregarRepuestoAOrden({
+    const res = await executeOrEnqueue("agregarRepuestoAOrden", {
       orden_id: orden.id,
       repuesto_id: repuestoSeleccionadoId,
       cantidad: Number(cantidadRepuesto),
     });
 
     setGuardandoRepuesto(false);
+    if ("offline" in res && res.offline) {
+      setErrorRepuesto("Sin conexión. Se guardará cuando vuelva internet.");
+      return;
+    }
     if (!res.ok) {
       setErrorRepuesto(res.error);
       return;
@@ -167,7 +170,11 @@ export function OrdenDetalleView({
     if (!confirm(`¿Eliminar '${nombreRep}' de la orden? El stock será devuelto automáticamente al inventario.`)) {
       return;
     }
-    const res = await eliminarRepuestoDeOrden(detalleId, orden.id);
+    const res = await executeOrEnqueue("eliminarRepuestoDeOrden", { detalle_id: detalleId, orden_id: orden.id });
+    if ("offline" in res && res.offline) {
+      setErrorRepuesto("Sin conexión. Se guardará cuando vuelva internet.");
+      return;
+    }
     if (!res.ok) {
       setErrorRepuesto(res.error);
       return;
@@ -181,7 +188,7 @@ export function OrdenDetalleView({
     setGuardandoMO(true);
     setErrorMO(null);
 
-    const res = await agregarManoObraAOrden({
+    const res = await executeOrEnqueue("agregarManoObraAOrden", {
       orden_id: orden.id,
       empleado_id: mecanicoId,
       descripcion: descripcionMO,
@@ -194,6 +201,10 @@ export function OrdenDetalleView({
     });
 
     setGuardandoMO(false);
+    if ("offline" in res && res.offline) {
+      setErrorMO("Sin conexión. Se guardará cuando vuelva internet.");
+      return;
+    }
     if (!res.ok) {
       setErrorMO(res.error);
       return;
@@ -211,7 +222,11 @@ export function OrdenDetalleView({
   // Eliminar Mano de Obra
   async function handleEliminarManoObra(detalleId: string) {
     if (!confirm("¿Eliminar este ítem de mano de obra?")) return;
-    const res = await eliminarManoObraDeOrden(detalleId, orden.id);
+    const res = await executeOrEnqueue("eliminarManoObraDeOrden", { detalle_id: detalleId, orden_id: orden.id });
+    if ("offline" in res && res.offline) {
+      setErrorMO("Sin conexión. Se guardará cuando vuelva internet.");
+      return;
+    }
     if (!res.ok) {
       setErrorMO(res.error);
       return;
