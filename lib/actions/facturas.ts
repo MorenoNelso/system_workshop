@@ -681,9 +681,9 @@ export async function registrarPago(raw: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
-/** Anula una factura pendiente. Solo `administrador` (acción sensible). */
+/** Anula una factura pendiente. `administrador` y `colaborador` pueden anular. */
 export async function anularFactura(id: string): Promise<ActionResult> {
-  const user = await requireRole("administrador");
+  const user = await requireRole("administrador", "colaborador");
 
   const supabase = await db();
 
@@ -750,6 +750,86 @@ export async function anularFactura(id: string): Promise<ActionResult> {
 
   touch(PATH);
   touch(`${PATH}/${id}`);
+  touch("/repuestos");
+  touch("/inventario");
+  return { ok: true };
+}
+
+/**
+ * Elimina una factura y todos sus registros asociados (pagos, detalles).
+ * Solo `administrador`. Devuelve automáticamente el stock de repuestos de
+ * venta directa al inventario. Si falla la devolución de stock, aborta.
+ */
+export async function deleteFactura(id: string): Promise<ActionResult> {
+  const user = await requireRole("administrador");
+
+  const supabase = await db();
+
+  const { data: factura, error } = await supabase
+    .from("facturas")
+    .select("id, estado_pago, orden_id")
+    .eq("id", id)
+    .single();
+  if (error || !factura) {
+    return { ok: false, error: "La factura no existe." };
+  }
+
+  if (factura.estado_pago === "pagada") {
+    return {
+      ok: false,
+      error:
+        "No se puede eliminar una factura pagada. Anúlala primero para reversar el inventario.",
+    };
+  }
+
+  const { data: repuestos, error: repErr } = await supabase
+    .from("factura_detalle_repuestos")
+    .select("repuesto_id, cantidad")
+    .eq("factura_id", id);
+
+  if (repErr) {
+    return {
+      ok: false,
+      error: "No se pudo verificar el inventario de la factura.",
+    };
+  }
+
+  if (repuestos && repuestos.length > 0) {
+    for (const r of repuestos) {
+      const { error: movErr } = await supabase
+        .from("movimientos_inventario")
+        .insert({
+          repuesto_id: r.repuesto_id,
+          tipo: "entrada",
+          cantidad: r.cantidad,
+          motivo: "Devolución por eliminación de factura",
+          usuario_id: user.id,
+        });
+      if (movErr) {
+        return {
+          ok: false,
+          error:
+            "No se pudo devolver el stock al inventario. La factura no fue eliminada.",
+        };
+      }
+    }
+  }
+
+  await supabase.from("pagos").delete().eq("factura_id", id);
+  await supabase.from("factura_detalle_repuestos").delete().eq("factura_id", id);
+  await supabase.from("factura_detalle_servicios").delete().eq("factura_id", id);
+
+  const { error: delErr } = await supabase
+    .from("facturas")
+    .delete()
+    .eq("id", id);
+  if (delErr) {
+    return { ok: false, error: friendlyDbError("eliminar la factura") };
+  }
+
+  touch(PATH);
+  touch(`${PATH}/${id}`);
+  touch("/ordenes");
   touch("/repuestos");
   touch("/inventario");
   return { ok: true };

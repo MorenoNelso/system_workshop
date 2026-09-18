@@ -17,8 +17,7 @@ import { safeQuery } from "@/lib/safe-query";
 export const metadata: Metadata = { title: "Facturación — Pacho Motos" };
 
 export default async function FacturasPage() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await safeQuery(requireUser() as any, { id: "", email: "", rol: "administrador" });
+  await requireUser();
 
   // Ejecutar queries en paralelo con fallback vacío si fallan (offline)
   const [

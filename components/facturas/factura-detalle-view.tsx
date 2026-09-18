@@ -19,7 +19,6 @@ interface Props {
   factura: FacturaDetail;
   monedas: MonedaRef[];
   equivalencias: { moneda: MonedaRef; total: number | null }[];
-  esAdmin: boolean;
   nombreTaller?: string;
   logoWatermarkUrl?: string | null;
 }
@@ -57,7 +56,6 @@ export function FacturaDetalleView({
   factura,
   monedas,
   equivalencias,
-  esAdmin,
   nombreTaller = "Pacho Motos",
   logoWatermarkUrl = null,
 }: Props) {
@@ -185,16 +183,14 @@ export function FacturaDetalleView({
         {/* Acciones por estado */}
         {factura.estado_pago === "pendiente" && (
           <div className="flex items-center gap-2">
-            {esAdmin && (
-              <button
-                type="button"
-                onClick={handleAnular}
-                disabled={guardando}
-                className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:opacity-60"
-              >
-                Anular
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={handleAnular}
+              disabled={guardando}
+              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:opacity-60"
+            >
+              Anular
+            </button>
             <button
               type="button"
               onClick={() => {

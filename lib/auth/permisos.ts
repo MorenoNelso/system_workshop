@@ -2,20 +2,16 @@ import { getCurrentUser } from "@/lib/auth/session";
 
 /**
  * Verifica si el usuario actual puede eliminar registros de un módulo.
- *
- * - Admin siempre puede eliminar todo.
- * - Colaborador solo puede eliminar si su campo `permisos` tiene
- *   `{ "eliminar_<modulo>": true }`.
+ * Solo el administrador puede eliminar registros.
  *
  * @param modulo Nombre del módulo (ej: "clientes", "motos", "ordenes")
  * @returns true si tiene permiso, false si no
  */
-export async function puedeEliminar(modulo: string): Promise<boolean> {
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export async function puedeEliminar(_modulo: string): Promise<boolean> {
   const user = await getCurrentUser();
   if (!user) return false;
-  if (user.rol === "administrador") return true;
-
-  return user.permisos?.[`eliminar_${modulo}`] === true;
+  return user.rol === "administrador";
 }
 
 /**

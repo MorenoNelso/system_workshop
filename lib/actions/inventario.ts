@@ -1,6 +1,6 @@
 "use server";
 
-import { requireUser } from "@/lib/auth/session";
+import { requireRole } from "@/lib/auth/session";
 import { movimientoInventarioSchema, validate } from "@/lib/schemas";
 import {
   db,
@@ -35,7 +35,7 @@ export async function listMovimientos(limit = 100): Promise<MovimientoRow[]> {
 }
 
 export async function registrarMovimiento(raw: unknown): Promise<ActionResult> {
-  const user = await requireUser();
+  const user = await requireRole("administrador");
   const parsed = validate(movimientoInventarioSchema, raw);
   if (!parsed.ok) return parsed;
 

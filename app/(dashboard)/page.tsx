@@ -45,8 +45,8 @@ function PipelineBlock({
 }
 
 export default async function DashboardPage() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const user = await safeQuery(getCurrentUser() as any, { id: "", email: "", nombre: "Usuario", rol: "administrador" as const, activo: true, permisos: null });
+  const user = await getCurrentUser();
+  if (!user) return null;
   const esAdmin = user.rol === "administrador";
 
   const emptyResumen = { recibido: 0, en_proceso: 0, terminado: 0, entregado: 0 };

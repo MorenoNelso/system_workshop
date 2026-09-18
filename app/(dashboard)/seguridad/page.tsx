@@ -14,13 +14,14 @@ export const metadata: Metadata = {
 };
 
 export default async function SeguridadPage() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await safeQuery(requireRole("administrador") as any, { id: "", email: "", rol: "administrador" });
+  await requireRole("administrador");
 
   const supabase = await createClient();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data } = await safeQuery(supabase.auth.mfa.listFactors() as any, { data: { totp: [] } });
-  const totpActive = (data?.totp ?? []).some((f: { status: string }) => f.status === "verified");
+  const { data } = await safeQuery(
+    supabase.auth.mfa.listFactors() as Promise<{ data: { totp: { status: string }[] } | null }>,
+    { data: { totp: [] } },
+  );
+  const totpActive = (data?.totp ?? []).some((f) => f.status === "verified");
 
   return (
     <div className="mx-auto flex w-full max-w-md flex-col gap-4">

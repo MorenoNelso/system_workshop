@@ -17,9 +17,8 @@ export default async function FacturaDetallePage(props: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await props.params;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const user = await safeQuery(getCurrentUser() as any, { id: "", email: "", nombre: "", rol: "administrador" as const, activo: true, permisos: null });
-  const esAdmin = user.rol === "administrador";
+  const user = await getCurrentUser();
+  if (!user) return null;
 
   const factura = await safeQuery(getFacturaById(id), null);
   if (!factura) {
@@ -61,7 +60,6 @@ export default async function FacturaDetallePage(props: {
       factura={factura}
       monedas={monedas}
       equivalencias={equivalencias}
-      esAdmin={esAdmin}
       nombreTaller={config.nombre_taller}
       logoWatermarkUrl={config.logo_watermark_url}
     />

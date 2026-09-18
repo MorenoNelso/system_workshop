@@ -12,8 +12,7 @@ export const instant = false;
 export default async function AuditoriaPage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await safeQuery(requireRole("administrador") as any, { id: "", email: "", rol: "administrador" });
+  await requireRole("administrador");
 
   const search = await props.searchParams;
   const supabase = await createClient();

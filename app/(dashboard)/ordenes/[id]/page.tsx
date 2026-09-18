@@ -26,7 +26,7 @@ export default async function OrdenDetallePage({ params }: PageProps) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-sm text-zinc-500">
-          No se pudo cargar la orden. { !navigator.onLine ? "Sin conexión." : "" }
+          No se pudo cargar la orden. Sin conexión.
         </p>
       </div>
     );

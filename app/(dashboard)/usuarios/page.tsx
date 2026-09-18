@@ -8,8 +8,7 @@ import { UsuariosClient } from "./usuarios-client";
 export const metadata: Metadata = { title: "Usuarios — Pacho Motos" };
 
 export default async function UsuariosPage() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await safeQuery(requireRole("administrador") as any, { id: "", email: "", rol: "administrador" });
+  await requireRole("administrador");
   const usuarios = await safeQuery(listUsuarios());
 
   return (

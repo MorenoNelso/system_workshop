@@ -11,8 +11,7 @@ export const metadata = {
 export const instant = false;
 
 export default async function ContabilidadPage() {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  await safeQuery(requireRole("administrador") as any, { id: "", email: "", rol: "administrador" });
+  await requireRole("administrador");
 
   const [ganancias, monedas] = await Promise.all([
     safeQuery(getGanancias(), { hoy: [], diasAnteriores: [], moneda: { id: "", codigo: "", nombre: "", simbolo: "" }, gananciaTallerMes: 0, retirosMes: 0, deduccionesMes: 0, gananciaNetaMes: 0, duenoId: null }),

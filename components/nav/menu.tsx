@@ -48,8 +48,12 @@ export function NavMenu({ esAdmin }: Props) {
         { href: "/", label: "Inicio" },
         { href: "/ordenes", label: "Órdenes de Servicio" },
         { href: "/facturas", label: "Facturación" },
-        ...(esAdmin ? [{ href: "/contabilidad", label: "Contabilidad" }] : []),
-        { href: "/inventario", label: "Kardex / Stock" },
+        ...(esAdmin
+          ? [
+              { href: "/contabilidad", label: "Contabilidad" },
+              { href: "/inventario", label: "Kardex / Stock" },
+            ]
+          : []),
       ],
     },
     {
