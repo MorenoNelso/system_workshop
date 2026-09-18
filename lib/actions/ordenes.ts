@@ -2,6 +2,7 @@
 
 import { requireUser } from "@/lib/auth/session";
 import { requireEliminar } from "@/lib/auth/permisos";
+import { z } from "zod";
 import {
   ordenDetalleManoObraSchema,
   ordenDetalleRepuestoSchema,
@@ -174,10 +175,17 @@ export async function updateOrden(
   return { ok: true, data };
 }
 
+const estadoOrdenSchema = z.enum(["recibido", "en_proceso", "terminado", "entregado"]);
+
 export async function updateEstadoOrden(
   id: string,
   estado: "recibido" | "en_proceso" | "terminado" | "entregado",
 ): Promise<ActionResult> {
+  const parsedEstado = estadoOrdenSchema.safeParse(estado);
+  if (!parsedEstado.success) {
+    return { ok: false, error: "El estado proporcionado no es válido." };
+  }
+
   const supabase = await db();
   const updateData: {
     estado: "recibido" | "en_proceso" | "terminado" | "entregado";

@@ -60,7 +60,6 @@ export async function executeOrEnqueue(
       !navigator.onLine;
 
     if (isNetworkError) {
-      console.log(`[offline] Encolando acción: ${action}`, data);
       await enqueueAction(action, data);
       return { ok: true, offline: true };
     }
@@ -102,9 +101,7 @@ export async function syncPendingActions(): Promise<{
       await markProcessing(action.id!);
 
       try {
-        console.log(`[offline] Sincronizando: ${action.action}`, action.data);
         const result = await handler(action.data);
-        console.log(`[offline] Resultado ${action.action}:`, result);
         if (result.ok) {
           await markSynced(action.id!);
           synced++;

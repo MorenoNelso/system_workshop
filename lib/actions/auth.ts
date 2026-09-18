@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { requireRole } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
-import { rateLimitLogin, rateLimitMfa, rateLimitRecuperacion } from "@/lib/rate-limit";
+import { rateLimitLogin, rateLimitMfa, rateLimitOtpVerify, rateLimitRecuperacion } from "@/lib/rate-limit";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL
   ?? (process.env.NODE_ENV === "production"
@@ -214,6 +214,10 @@ export async function verificarCodigoRecuperacion(
   });
   if (!parsed.success) {
     return { message: parsed.error.issues[0]?.message ?? "Datos inválidos." };
+  }
+
+  if (!(await rateLimitOtpVerify(parsed.data.email))) {
+    return { message: "Demasiados intentos. Espera unos minutos e intenta de nuevo." };
   }
 
   const supabase = await createClient();

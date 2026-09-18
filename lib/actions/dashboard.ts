@@ -3,7 +3,7 @@
 import { getCurrentUser, requireRole } from "@/lib/auth/session";
 import { convertir, getTasasVigentes } from "@/lib/currency";
 import { db } from "@/lib/actions/_crud-helpers";
-import { createClient } from "@/lib/supabase/server";
+import type { createClient } from "@/lib/supabase/server";
 
 /* ------------------------------------------------------------------ */
 /* Formas de los datos que consumen los componentes                    */
@@ -272,7 +272,7 @@ export async function getVentasPorRango(
   const user = await getCurrentUser();
   if (!user || user.rol !== "administrador") return null;
 
-  const supabase = await createClient();
+  const supabase = await db();
   const monedas = await getMonedasYBase(supabase);
   const monedaBase = monedas[0];
   const tasas = await getTasasVigentes(supabase);

@@ -15,7 +15,7 @@ import {
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
-import { rateLimitFactura } from "@/lib/rate-limit";
+import { rateLimitFactura, rateLimitPago } from "@/lib/rate-limit";
 
 const PATH = "/facturas";
 
@@ -451,36 +451,46 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
     moneda_id: string;
   }[] = [];
 
-  for (const r of repuestos) {
-    const { data: rep, error: repErr } = await supabase
+  // Batch: fetch all repuestos in one query instead of N individual queries
+  if (repuestos.length > 0) {
+    const repuestoIds = repuestos.map((r) => r.repuesto_id);
+    const { data: reps, error: repsErr } = await supabase
       .from("repuestos")
       .select("id, nombre, stock_actual, precio_venta, precio_costo, moneda_id, activo")
-      .eq("id", r.repuesto_id)
-      .single();
+      .in("id", repuestoIds);
 
-    if (repErr || !rep) {
-      return { ok: false, error: "Uno de los repuestos seleccionados no existe." };
-    }
-    if (!rep.activo) {
-      return { ok: false, error: `El repuesto '${rep.nombre}' está inactivo.` };
-    }
-    if (rep.stock_actual < r.cantidad) {
-      return {
-        ok: false,
-        error: `Stock insuficiente para '${rep.nombre}'. Disponible: ${rep.stock_actual}, solicitado: ${r.cantidad}.`,
-      };
+    if (repsErr || !reps) {
+      return { ok: false, error: "No se pudieron cargar los repuestos seleccionados." };
     }
 
-    const amount = rep.precio_venta * r.cantidad;
-    lineas.push({ moneda_id: rep.moneda_id, amount });
+    const repsMap = new Map(reps.map((r) => [r.id, r]));
 
-    repuestosData.push({
-      repuesto_id: r.repuesto_id,
-      cantidad: r.cantidad,
-      precio_unitario_aplicado: rep.precio_venta,
-      precio_costo_aplicado: rep.precio_costo ?? null,
-      moneda_id: rep.moneda_id,
-    });
+    for (const r of repuestos) {
+      const rep = repsMap.get(r.repuesto_id);
+      if (!rep) {
+        return { ok: false, error: "Uno de los repuestos seleccionados no existe." };
+      }
+      if (!rep.activo) {
+        return { ok: false, error: `El repuesto '${rep.nombre}' está inactivo.` };
+      }
+      if (rep.stock_actual < r.cantidad) {
+        return {
+          ok: false,
+          error: `Stock insuficiente para '${rep.nombre}'. Disponible: ${rep.stock_actual}, solicitado: ${r.cantidad}.`,
+        };
+      }
+
+      const amount = rep.precio_venta * r.cantidad;
+      lineas.push({ moneda_id: rep.moneda_id, amount });
+
+      repuestosData.push({
+        repuesto_id: r.repuesto_id,
+        cantidad: r.cantidad,
+        precio_unitario_aplicado: rep.precio_venta,
+        precio_costo_aplicado: rep.precio_costo ?? null,
+        moneda_id: rep.moneda_id,
+      });
+    }
   }
 
   const serviciosData: {
@@ -492,17 +502,23 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
     comision_calculada: number | null;
   }[] = [];
 
-  for (const s of servicios) {
-    let porcentajeComision: number | null = null;
-
-    if (s.empleado_id) {
-      const { data: emp } = await supabase
-        .from("empleados")
-        .select("porcentaje_comision")
-        .eq("id", s.empleado_id)
-        .single();
-      porcentajeComision = emp?.porcentaje_comision ?? null;
+  // Batch: fetch all empleados in one query instead of N individual queries
+  const empleadoIds = [...new Set(servicios.map((s) => s.empleado_id).filter((id): id is string => !!id))];
+  const empleadosMap = new Map<string, { porcentaje_comision: number | null }>();
+  if (empleadoIds.length > 0) {
+    const { data: emps } = await supabase
+      .from("empleados")
+      .select("id, porcentaje_comision")
+      .in("id", empleadoIds);
+    for (const e of emps ?? []) {
+      empleadosMap.set(e.id, { porcentaje_comision: e.porcentaje_comision });
     }
+  }
+
+  for (const s of servicios) {
+    const porcentajeComision = s.empleado_id
+      ? (empleadosMap.get(s.empleado_id)?.porcentaje_comision ?? null)
+      : null;
 
     // Si se proporciona monto_a_pagar, usarlo directamente; si no, calcular desde %
     const montoAPagar = s.monto_a_pagar ?? null;
@@ -580,14 +596,18 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
       return { ok: false, error: friendlyDbError("guardar los repuestos de la factura") };
     }
 
-    for (const r of repuestosData) {
-      await supabase.from("movimientos_inventario").insert({
+    // Batch: insert all inventory movements in one query
+    const { error: movErr } = await supabase.from("movimientos_inventario").insert(
+      repuestosData.map((r) => ({
         repuesto_id: r.repuesto_id,
         tipo: "salida",
         cantidad: r.cantidad,
         motivo: "Venta directa (sin orden de servicio)",
         usuario_id: user.id,
-      });
+      })),
+    );
+    if (movErr) {
+      return { ok: false, error: friendlyDbError("registrar los movimientos de inventario") };
     }
   }
 
@@ -613,7 +633,11 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
  * pagado, convertido a la moneda de la factura, cubra el total congelado.
  */
 export async function registrarPago(raw: unknown): Promise<ActionResult> {
-  await requireRole("administrador", "colaborador");
+  const user = await requireRole("administrador", "colaborador");
+
+  if (!(await rateLimitPago(user.id))) {
+    return { ok: false, error: "Demasiados pagos registrados en poco tiempo. Espera unos minutos e intenta de nuevo." };
+  }
 
   const parsed = validate(pagoSchema, raw);
   if (!parsed.ok) return parsed;
@@ -815,9 +839,14 @@ export async function deleteFactura(id: string): Promise<ActionResult> {
     }
   }
 
-  await supabase.from("pagos").delete().eq("factura_id", id);
-  await supabase.from("factura_detalle_repuestos").delete().eq("factura_id", id);
-  await supabase.from("factura_detalle_servicios").delete().eq("factura_id", id);
+  const [pagosDel, repDetDel, servDetDel] = await Promise.all([
+    supabase.from("pagos").delete().eq("factura_id", id),
+    supabase.from("factura_detalle_repuestos").delete().eq("factura_id", id),
+    supabase.from("factura_detalle_servicios").delete().eq("factura_id", id),
+  ]);
+  if (pagosDel.error || repDetDel.error || servDetDel.error) {
+    return { ok: false, error: friendlyDbError("eliminar los registros asociados de la factura") };
+  }
 
   const { error: delErr } = await supabase
     .from("facturas")

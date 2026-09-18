@@ -60,3 +60,13 @@ export function rateLimitRecuperacion(email: string): Promise<boolean> {
 export function rateLimitFactura(userId: string): Promise<boolean> {
   return checkLimit(`factura:${userId}`, 10, 15 * 60_000);
 }
+
+/** Limite para verificacion de codigo OTP (5 por 15 min por email). */
+export function rateLimitOtpVerify(email: string): Promise<boolean> {
+  return checkLimit(`otp:${email}`, 5, 15 * 60_000);
+}
+
+/** Limite para registro de pagos (10 por 15 min por usuario). */
+export function rateLimitPago(userId: string): Promise<boolean> {
+  return checkLimit(`pago:${userId}`, 10, 15 * 60_000);
+}

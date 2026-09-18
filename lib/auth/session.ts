@@ -153,11 +153,8 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     if (error?.message?.includes("fetch") || error?.code === "PGRST301" || !error?.code) {
       return getUserFromCookies();
     }
-    console.error("[Auth] No se encontró usuario en public.usuarios o error RLS:", {
-      authUserId: user.id,
-      authUserEmail: user.email,
-      dbData: data,
-      dbError: error,
+    console.error("[Auth] Usuario no encontrado en public.usuarios o error RLS:", {
+      userId: user.id,
     });
     Sentry.captureMessage(
       "Usuario autenticado sin registro en public.usuarios (posible RLS o registro incompleto)",
