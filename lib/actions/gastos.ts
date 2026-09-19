@@ -2,6 +2,7 @@
 
 import { gastoSchema, validate } from "@/lib/schemas";
 import { requireRole } from "@/lib/auth/session";
+import { rateLimitAdmin } from "@/lib/rate-limit";
 import {
   db,
   friendlyDbError,
@@ -30,15 +31,15 @@ export async function listGastos(
 }
 
 export async function createGasto(raw: unknown): Promise<ActionResult> {
-  await requireRole("administrador");
+  const user = await requireRole("administrador");
+
+  const allowed = await rateLimitAdmin(user.id);
+  if (!allowed) return { ok: false, error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." };
+
   const parsed = validate(gastoSchema, raw);
   if (!parsed.ok) return parsed;
 
   const supabase = await db();
-
-  // Obtener el usuario actual para registrado_por
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { ok: false, error: "Sesión no válida." };
 
   const { data, error } = await supabase
     .from("gastos")

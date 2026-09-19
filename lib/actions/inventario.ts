@@ -2,6 +2,7 @@
 
 import { requireRole } from "@/lib/auth/session";
 import { movimientoInventarioSchema, validate } from "@/lib/schemas";
+import { rateLimitAdmin } from "@/lib/rate-limit";
 import {
   db,
   friendlyDbError,
@@ -36,6 +37,10 @@ export async function listMovimientos(limit = 100): Promise<MovimientoRow[]> {
 
 export async function registrarMovimiento(raw: unknown): Promise<ActionResult> {
   const user = await requireRole("administrador");
+
+  const allowed = await rateLimitAdmin(user.id);
+  if (!allowed) return { ok: false, error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." };
+
   const parsed = validate(movimientoInventarioSchema, raw);
   if (!parsed.ok) return parsed;
 

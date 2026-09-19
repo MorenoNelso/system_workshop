@@ -70,3 +70,8 @@ export function rateLimitOtpVerify(email: string): Promise<boolean> {
 export function rateLimitPago(userId: string): Promise<boolean> {
   return checkLimit(`pago:${userId}`, 10, 15 * 60_000);
 }
+
+/** Limite para acciones admin-only (20 por 15 min por usuario). */
+export function rateLimitAdmin(userId: string): Promise<boolean> {
+  return checkLimit(`admin:${userId}`, 20, 15 * 60_000);
+}

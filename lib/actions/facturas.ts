@@ -743,24 +743,22 @@ export async function anularFactura(id: string): Promise<ActionResult> {
   }
 
   if (repuestos && repuestos.length > 0) {
-    for (const r of repuestos) {
-      const { error: movErr } = await supabase
-        .from("movimientos_inventario")
-        .insert({
-          repuesto_id: r.repuesto_id,
-          tipo: "entrada",
-          cantidad: r.cantidad,
-          motivo: "Devolución por anulación de factura",
-          usuario_id: user.id,
-        });
-      if (movErr) {
-        // No anular sin devolver el stock: abortamos para no perder inventario.
-        return {
-          ok: false,
-          error:
-            "No se pudo devolver el stock al inventario. La factura no fue anulada; intenta de nuevo.",
-        };
-      }
+    const movimientos = repuestos.map((r) => ({
+      repuesto_id: r.repuesto_id,
+      tipo: "entrada" as const,
+      cantidad: r.cantidad,
+      motivo: "Devolución por anulación de factura",
+      usuario_id: user.id,
+    }));
+    const { error: movErr } = await supabase
+      .from("movimientos_inventario")
+      .insert(movimientos);
+    if (movErr) {
+      return {
+        ok: false,
+        error:
+          "No se pudo devolver el stock al inventario. La factura no fue anulada; intenta de nuevo.",
+      };
     }
   }
 
@@ -819,23 +817,22 @@ export async function deleteFactura(id: string): Promise<ActionResult> {
   }
 
   if (repuestos && repuestos.length > 0) {
-    for (const r of repuestos) {
-      const { error: movErr } = await supabase
-        .from("movimientos_inventario")
-        .insert({
-          repuesto_id: r.repuesto_id,
-          tipo: "entrada",
-          cantidad: r.cantidad,
-          motivo: "Devolución por eliminación de factura",
-          usuario_id: user.id,
-        });
-      if (movErr) {
-        return {
-          ok: false,
-          error:
-            "No se pudo devolver el stock al inventario. La factura no fue eliminada.",
-        };
-      }
+    const movimientos = repuestos.map((r) => ({
+      repuesto_id: r.repuesto_id,
+      tipo: "entrada" as const,
+      cantidad: r.cantidad,
+      motivo: "Devolución por eliminación de factura",
+      usuario_id: user.id,
+    }));
+    const { error: movErr } = await supabase
+      .from("movimientos_inventario")
+      .insert(movimientos);
+    if (movErr) {
+      return {
+        ok: false,
+        error:
+          "No se pudo devolver el stock al inventario. La factura no fue eliminada.",
+      };
     }
   }
 

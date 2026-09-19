@@ -2,6 +2,7 @@
 
 import { requireRole } from "@/lib/auth/session";
 import { tasaCambioSchema, validate } from "@/lib/schemas";
+import { rateLimitAdmin } from "@/lib/rate-limit";
 import {
   db,
   friendlyDbError,
@@ -51,6 +52,9 @@ export async function listTasasVigentes() {
  */
 export async function registrarTasa(raw: unknown): Promise<ActionResult> {
   const user = await requireRole("administrador");
+
+  const allowed = await rateLimitAdmin(user.id);
+  if (!allowed) return { ok: false, error: "Demasiadas solicitudes. Espera un momento e intenta de nuevo." };
 
   const parsed = validate(tasaCambioSchema, raw);
   if (!parsed.ok) return parsed;

@@ -9,7 +9,7 @@ import { EmpleadosClient } from "./empleados-client";
 export const metadata: Metadata = { title: "Empleados — Pacho Motos" };
 
 export default async function EmpleadosPage() {
-  const user = await safeQuery(getCurrentUser(), { id: "", email: "", nombre: "", rol: "administrador" as const, activo: true, permisos: null });
+  const user = await getCurrentUser();
   const [empleados, monedas, resumen] = await Promise.all([
     safeQuery(listEmpleados()),
     safeQuery(listMonedas()),
@@ -21,7 +21,7 @@ export default async function EmpleadosPage() {
       initialRows={empleados}
       monedas={monedas}
       resumen={resumen}
-      userRole={user?.rol ?? "mecanico"}
+      userRole={user?.rol ?? "colaborador"}
     />
   );
 }

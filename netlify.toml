@@ -1,9 +1,12 @@
 [build]
-  command = "npx prisma generate && next build"
+  command = "next build"
   publish = ".next"
 
 [build.environment]
   NODE_VERSION = "20"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
 
 # Forzar HTTPS
 [[redirects]]
@@ -11,12 +14,3 @@
   to = "https://:host=:path"
   status = 301
   force = true
-
-# Headers de seguridad
-[[headers]]
-  for = "/:path*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
-    Permissions-Policy = "camera=(), microphone=(), geolocation=()"
