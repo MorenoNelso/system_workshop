@@ -5,6 +5,7 @@ import { getOrdenById } from "@/lib/actions/ordenes";
 import { listRepuestos } from "@/lib/actions/repuestos";
 import { listMecanicosActivos } from "@/lib/actions/empleados";
 import { listMonedas } from "@/lib/actions/tasas";
+import { requireUser } from "@/lib/auth/session";
 import { safeQuery } from "@/lib/safe-query";
 
 export const metadata: Metadata = { title: "Detalle de Orden — Pacho Motos" };
@@ -14,6 +15,7 @@ interface PageProps {
 }
 
 export default async function OrdenDetallePage({ params }: PageProps) {
+  await requireUser();
   const { id } = await params;
   const [orden, repuestos, mecanicos, monedas] = await Promise.all([
     safeQuery(getOrdenById(id), null),

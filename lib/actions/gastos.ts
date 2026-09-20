@@ -76,6 +76,7 @@ export async function getResumenGastos(
   total: number;
   porCategoria: Record<string, number>;
 }> {
+  await requireRole("administrador");
   const supabase = await db();
 
   const now = new Date();

@@ -83,6 +83,7 @@ export async function getDeduccionesPorMecanico(
     cantidad: number;
   }>
 > {
+  await requireRole("administrador");
   const supabase = await db();
 
   const now = new Date();
