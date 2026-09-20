@@ -123,7 +123,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     user = authUser;
   } catch (err) {
     // Error de red: intentar leer usuario de las cookies JWT
-    console.error("[session] getUser failed (network?):", err);
+    Sentry.captureException(err, { extra: { source: "getUser" } });
     return getUserFromCookies();
   }
 
@@ -139,7 +139,6 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     if (aal?.currentLevel === "aal1" && aal?.nextLevel === "aal2") return null;
   } catch {
     // Offline: no podemos verificar MFA, asumir OK
-    console.warn("[session] getAuthenticatorAssuranceLevel failed (network?)");
   }
 
   const { data, error } = await supabase
@@ -153,9 +152,6 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
     if (error?.message?.includes("fetch") || error?.code === "PGRST301" || !error?.code) {
       return getUserFromCookies();
     }
-    console.error("[Auth] Usuario no encontrado en public.usuarios o error RLS:", {
-      userId: user.id,
-    });
     Sentry.captureMessage(
       "Usuario autenticado sin registro en public.usuarios (posible RLS o registro incompleto)",
       {

@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import * as Sentry from "@sentry/nextjs";
 
 import type { Database } from "@/types/database.types";
 
@@ -73,7 +74,7 @@ export async function updateSession(
     // existentes. Las cookies httpOnly siguen válidas; RLS protege la DB.
     // Si no hay cookies de sesión, el usuario será redirigido a /login
     // en el layout (que también maneja este caso).
-    console.error("[proxy] Auth check failed (network?):", err);
+    Sentry.captureException(err, { extra: { source: "proxy-auth" } });
     // Verificar si hay cookies de sesión como indicador de login previo
     const hasSessionCookie = request.cookies.getAll().some(
       (c) => c.name.startsWith("sb-") && c.name.endsWith("-auth-token"),

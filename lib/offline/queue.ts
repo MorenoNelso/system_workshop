@@ -64,7 +64,6 @@ export async function executeOrEnqueue(
       return { ok: true, offline: true };
     }
 
-    console.error(`[offline] Error no-network en ${action}:`, msg);
     return { ok: false, error: msg };
   }
 }

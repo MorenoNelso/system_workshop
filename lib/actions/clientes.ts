@@ -8,6 +8,7 @@ import {
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
+import type { Database } from "@/types/database.types";
 
 const PATH = "/clientes";
 
@@ -55,8 +56,7 @@ export async function createCliente(raw: unknown): Promise<ActionResult> {
   const { id, ...insertData } = parsed.data;
   const { data, error } = await supabase
     .from("clientes")
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .insert(id ? { id, ...insertData } as any : insertData)
+    .insert(id ? { id, ...insertData } as Database["public"]["Tables"]["clientes"]["Insert"] : insertData)
     .select()
     .single();
   if (error) return { ok: false, error: friendlyDbError("crear el cliente") };
