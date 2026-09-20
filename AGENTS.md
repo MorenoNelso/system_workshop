@@ -69,13 +69,13 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 | 5 | Dashboard y Reportes | ✅ Completa |
 | 6 | Hardening de seguridad (auditoría completa) | ✅ Completa |
 | 7 | Testing | 🔄 En curso (Vitest + módulos puros: currency, schemas, rate-limit) |
-| 8 | Despliegue a producción (Netlify + Supabase Pro) | ⬜ Pendiente |
+| 8 | Despliegue a producción (Netlify + Supabase Free) | ⬜ Pendiente |
 
 **Regla de trabajo:** fases pequeñas. No implementar nada que no esté en la fase actual. Si algo no está claro, preguntar antes de asumir.
 
 ---
 
-## Base de datos — 17 tablas (fuente de verdad: `docs/esquema-bd-taller-motos.md`)
+## Base de datos — 21 tablas (fuente de verdad: `docs/esquema-bd-taller-motos.md`)
 
 > No inventar columnas ni tablas nuevas sin pedido explícito. Usar siempre el esquema del archivo de docs como referencia.
 
@@ -180,6 +180,5 @@ Paleta oficial **Pacho Motos** (definida en `app/globals.css` como tokens `brand
 - **SMTP del cliente** (correo de recuperación de contraseña): configurar en Supabase → Authentication → SMTP con el Gmail **del cliente** (app password). Hoy usa el SMTP default de Supabase (límite 2 correos/hora, remitente de Supabase).
 - **Verificar template de email OTP** en Supabase → Email Templates: debe mostrar `{{ .Token }}` (código numérico).
 - **Limpieza de `docs/`**: mover SQLs y manuales sensibles fuera del repo antes de subir a Netlify.
-- **`netlify.toml`**: no existe aún. Crear con headers + env vars para producción.
 - **Backup de la BD** antes del despliegue.
-- Decidir plan de Supabase (Starter gratuito suele bastar para 1-3 usuarios).
+- **Plan Supabase**: Free tier por ahora (1-3 usuarios). Migrar a Starter/Pro cuando la BD crezca o se necesiten features premium.
