@@ -4,6 +4,8 @@ import { withSerwist } from "@serwist/turbopack";
 
 const isDev = process.env.NODE_ENV === "development";
 
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+
 const securityHeaders = [
   {
     key: "Strict-Transport-Security",
@@ -35,9 +37,9 @@ const securityHeaders = [
       // Riesgo aceptado: usuarios internos (1-3 personas), no público.
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
-      "img-src 'self' data: https://xornnmlgufdlscxhgyyp.supabase.co https://o4511990296346624.ingest.us.sentry.io",
+      `img-src 'self' data: ${supabaseUrl} https://o4511990296346624.ingest.us.sentry.io`,
       "font-src 'self'",
-      "connect-src 'self' https://xornnmlgufdlscxhgyyp.supabase.co wss://xornnmlgufdlscxhgyyp.supabase.co https://o4511990296346624.ingest.us.sentry.io",
+      `connect-src 'self' ${supabaseUrl} wss://${supabaseUrl.replace("https://", "")} https://o4511990296346624.ingest.us.sentry.io`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -64,7 +66,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "xornnmlgufdlscxhgyyp.supabase.co",
+        hostname: supabaseUrl.replace("https://", ""),
       },
     ],
   },

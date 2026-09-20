@@ -3,6 +3,7 @@
 import { gastoSchema, validate } from "@/lib/schemas";
 import { requireRole } from "@/lib/auth/session";
 import { rateLimitAdmin } from "@/lib/rate-limit";
+import { convertir, construirTasasVigentes } from "@/lib/currency";
 import {
   db,
   friendlyDbError,
@@ -16,6 +17,7 @@ export async function listGastos(
   fechaDesde?: string,
   fechaHasta?: string,
 ) {
+  await requireRole("administrador");
   const supabase = await db();
   let query = supabase
     .from("gastos")
@@ -96,22 +98,17 @@ export async function getResumenGastos(
   const monedaBase = monedas?.[0];
   const { data: tasasRows } = await supabase
     .from("tasas_cambio")
-    .select("moneda_origen_id, moneda_destino_id, tasa")
+    .select("moneda_origen_id, moneda_destino_id, tasa, fecha")
     .eq("activa", true);
-  const tasas = (tasasRows ?? []) as { moneda_origen_id: string; moneda_destino_id: string; tasa: number }[];
-
-  const convertirLocal = (monto: number, from: string, to: string): number => {
-    if (from === to) return monto;
-    const t = tasas.find((t) => t.moneda_origen_id === from && t.moneda_destino_id === to);
-    return t ? monto * t.tasa : monto;
-  };
+  const tasasMap = construirTasasVigentes(tasasRows ?? []);
 
   let total = 0;
   const porCategoria: Record<string, number> = {};
   for (const g of data) {
-    const converted = convertirLocal(Number(g.monto), g.moneda_id, monedaBase?.id ?? g.moneda_id);
-    total += converted;
-    porCategoria[g.categoria] = (porCategoria[g.categoria] ?? 0) + converted;
+    const converted = convertir(Number(g.monto), g.moneda_id, monedaBase?.id ?? g.moneda_id, tasasMap);
+    const monto = converted ?? Number(g.monto);
+    total += monto;
+    porCategoria[g.categoria] = (porCategoria[g.categoria] ?? 0) + monto;
   }
 
   return { total, porCategoria };

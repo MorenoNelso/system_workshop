@@ -409,6 +409,7 @@ export interface Database {
           tasa_aplicada: number | null;
           estado_pago: "pendiente" | "pagada" | "anulada";
           fecha_emision: string;
+          usuario_id: string | null;
         }>;
         Insert: Insert<{
           orden_id?: string | null;
@@ -420,6 +421,7 @@ export interface Database {
           tasa_aplicada?: number | null;
           estado_pago?: "pendiente" | "pagada" | "anulada";
           fecha_emision?: string;
+          usuario_id?: string | null;
         }>;
         Update: Update<{
           orden_id?: string | null;
@@ -431,6 +433,7 @@ export interface Database {
           tasa_aplicada?: number | null;
           estado_pago?: "pendiente" | "pagada" | "anulada";
           fecha_emision?: string;
+          usuario_id?: string | null;
         }>;
         Relationships: [];
       };

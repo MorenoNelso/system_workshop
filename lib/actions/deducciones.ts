@@ -3,6 +3,7 @@
 import { deduccionSchema, validate } from "@/lib/schemas";
 import { requireRole } from "@/lib/auth/session";
 import { rateLimitAdmin } from "@/lib/rate-limit";
+import { convertir, construirTasasVigentes } from "@/lib/currency";
 import {
   db,
   friendlyDbError,
@@ -17,6 +18,7 @@ export async function listDeducciones(
   fechaDesde?: string,
   fechaHasta?: string,
 ) {
+  await requireRole("administrador");
   const supabase = await db();
   let query = supabase
     .from("deducciones_mecanico")
@@ -103,28 +105,23 @@ export async function getDeduccionesPorMecanico(
   const monedaBase = monedas?.[0];
   const { data: tasasRows } = await supabase
     .from("tasas_cambio")
-    .select("moneda_origen_id, moneda_destino_id, tasa")
+    .select("moneda_origen_id, moneda_destino_id, tasa, fecha")
     .eq("activa", true);
-  const tasas = (tasasRows ?? []) as { moneda_origen_id: string; moneda_destino_id: string; tasa: number }[];
-
-  const convertirLocal = (monto: number, from: string, to: string): number => {
-    if (from === to) return monto;
-    const t = tasas.find((t) => t.moneda_origen_id === from && t.moneda_destino_id === to);
-    return t ? monto * t.tasa : monto;
-  };
+  const tasasMap = construirTasasVigentes(tasasRows ?? []);
 
   const mapa = new Map<string, { empleadoNombre: string; total: number; cantidad: number }>();
 
   for (const d of data) {
-    const converted = convertirLocal(Number(d.costo), d.moneda_id, monedaBase?.id ?? d.moneda_id);
+    const converted = convertir(Number(d.costo), d.moneda_id, monedaBase?.id ?? d.moneda_id, tasasMap);
+    const monto = converted ?? Number(d.costo);
     const existing = mapa.get(d.empleado_id);
     if (existing) {
-      existing.total += converted;
+      existing.total += monto;
       existing.cantidad += 1;
     } else {
       mapa.set(d.empleado_id, {
         empleadoNombre: (d.empleado as unknown as { nombre: string })?.nombre ?? "Desconocido",
-        total: converted,
+        total: monto,
         cantidad: 1,
       });
     }

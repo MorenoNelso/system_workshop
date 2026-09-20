@@ -11,6 +11,6 @@
 # Forzar HTTPS
 [[redirects]]
   from = "http://*"
-  to = "https://:host=:path"
+  to = "https://:host/:path"
   status = 301
   force = true

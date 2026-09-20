@@ -290,7 +290,7 @@ export async function getFacturaById(id: string): Promise<FacturaDetail | null> 
  * - `numero_consecutivo` lo genera la BD (serial).
  */
 export async function createFactura(raw: unknown): Promise<ActionResult> {
-  const user = await requireRole("administrador", "colaborador");
+  const user = await requireRole("administrador");
 
   if (!(await rateLimitFactura(user.id))) {
     return { ok: false, error: "Demasiadas facturas creadas en poco tiempo. Espera unos minutos e intenta de nuevo." };
@@ -386,9 +386,9 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
         tasa_aplicada: tasaAplicada,
         estado_pago: "pendiente",
         usuario_id: user.id,
-      } as Record<string, unknown>)
-    .select("*, moneda:monedas(codigo, simbolo, nombre)")
-    .single();
+      })
+      .select("*, moneda:monedas(codigo, simbolo, nombre)")
+      .single();
 
   if (insErr) {
     // 23505 = unique violation: el índice `idx_facturas_orden_unica` ya
@@ -422,7 +422,7 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
  * - Guarda total y tasa_aplicada como SNAPSHOT.
  */
 export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> {
-  const user = await requireRole("administrador", "colaborador");
+  const user = await requireRole("administrador");
 
   if (!(await rateLimitFactura(user.id))) {
     return { ok: false, error: "Demasiadas facturas creadas en poco tiempo. Espera unos minutos e intenta de nuevo." };
@@ -575,7 +575,7 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
       tasa_aplicada: tasaAplicada,
       estado_pago: "pendiente",
       usuario_id: user.id,
-    } as Record<string, unknown>)
+    })
     .select("*, moneda:monedas(codigo, simbolo, nombre)")
     .single();
 
@@ -635,7 +635,7 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
  * pagado, convertido a la moneda de la factura, cubra el total congelado.
  */
 export async function registrarPago(raw: unknown): Promise<ActionResult> {
-  const user = await requireRole("administrador", "colaborador");
+  const user = await requireRole("administrador");
 
   if (!(await rateLimitPago(user.id))) {
     return { ok: false, error: "Demasiados pagos registrados en poco tiempo. Espera unos minutos e intenta de nuevo." };
@@ -707,9 +707,9 @@ export async function registrarPago(raw: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
-/** Anula una factura pendiente. `administrador` y `colaborador` pueden anular. */
+/** Anula una factura pendiente. Solo `administrador` puede anular. */
 export async function anularFactura(id: string): Promise<ActionResult> {
-  const user = await requireRole("administrador", "colaborador");
+  const user = await requireRole("administrador");
 
   if (!(await rateLimitAdmin(user.id))) {
     return { ok: false, error: "Demasiadas peticiones. Espera unos minutos e intenta de nuevo." };
@@ -721,15 +721,11 @@ export async function anularFactura(id: string): Promise<ActionResult> {
     .from("facturas")
     .select("id, estado_pago, usuario_id")
     .eq("id", id)
-    .single() as { data: { id: string; estado_pago: string; usuario_id: string | null } | null; error: unknown };
+    .single();
   if (error || !factura) {
     return { ok: false, error: "La factura no existe." };
   }
-  // Solo el admin puede anular facturas de otros usuarios.
-  // tolerancia a NULL: facturas antiguas sin usuario_id son anulables por cualquiera.
-  if (user.rol !== "administrador" && factura.usuario_id !== null && factura.usuario_id !== user.id) {
-    return { ok: false, error: "No tienes permiso para anular esta factura." };
-  }
+  // Solo admin puede anular facturas (RLS también lo exige).
   if (factura.estado_pago === "anulada") {
     return { ok: false, error: "La factura ya está anulada." };
   }

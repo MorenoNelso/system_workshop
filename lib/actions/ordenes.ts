@@ -297,6 +297,20 @@ export async function eliminarRepuestoDeOrden(
   const user = await requireUser();
   const supabase = await db();
 
+  // Verificar que la orden esté en estado que permita modificaciones
+  const { data: orden, error: ordErr } = await supabase
+    .from("ordenes_servicio")
+    .select("id, estado")
+    .eq("id", ordenId)
+    .single();
+
+  if (ordErr || !orden) {
+    return { ok: false, error: "La orden no existe." };
+  }
+  if (orden.estado === "terminado" || orden.estado === "entregado") {
+    return { ok: false, error: "No se pueden modificar órdenes terminadas o entregadas." };
+  }
+
   // 1. Consultar el detalle para saber qué repuesto y cantidad devolver
   const { data: detalle, error: getErr } = await supabase
     .from("orden_detalle_repuestos")
