@@ -49,7 +49,7 @@ export function UsuariosClient({ usuarios: initial }: { usuarios: UsuarioRow[] }
     setError(null);
     const res = await toggleUsuarioActivo(u.id, !u.activo);
     setBusy(null);
-    if (!res.ok) return setError(res.error ?? "Error");
+    if (!res.ok) return setError(res.error ?? "Error al procesar");
     setUsuarios((prev) =>
       prev.map((x) => (x.id === u.id ? { ...x, activo: !x.activo } : x)),
     );
@@ -60,7 +60,7 @@ export function UsuariosClient({ usuarios: initial }: { usuarios: UsuarioRow[] }
     setError(null);
     const res = await cambiarRolUsuario(u.id, rol);
     setBusy(null);
-    if (!res.ok) return setError(res.error ?? "Error");
+    if (!res.ok) return setError(res.error ?? "Error al procesar");
     setUsuarios((prev) =>
       prev.map((x) => (x.id === u.id ? { ...x, rol } : x)),
     );

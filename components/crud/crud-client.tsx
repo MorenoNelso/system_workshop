@@ -159,12 +159,10 @@ export function CrudClient({ config, rows: initialRows }: Props) {
       }
       setRows((prev) => prev.filter((r) => getRowId(r) !== id));
       showSuccess(`${config.singular} eliminado correctamente.`);
-    } catch (err) {
+    } catch {
       setPending(null);
       submittingRef.current = false;
-      setError(
-        err instanceof Error ? err.message : "No se pudo eliminar, intenta de nuevo",
-      );
+      setError("No se pudo eliminar, intenta de nuevo.");
     }
   }
 

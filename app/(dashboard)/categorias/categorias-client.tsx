@@ -8,6 +8,7 @@ import {
   deleteCategoria,
 } from "@/lib/actions/categorias";
 import { executeOrEnqueue } from "@/lib/offline/queue";
+import { crudRoleOverrides } from "@/lib/role-utils";
 
 interface Props {
   initialRows: Record<string, unknown>[];
@@ -15,7 +16,7 @@ interface Props {
 }
 
 export function CategoriasClient({ initialRows, userRole }: Props) {
-  const isAdmin = userRole === "administrador";
+  const perms = crudRoleOverrides(userRole);
 
   const config: CrudConfig = useMemo(
     () => ({
@@ -35,9 +36,9 @@ export function CategoriasClient({ initialRows, userRole }: Props) {
       },
       update: { label: "editar", run: (id, r) => updateCategoria(id, r) },
       delete: { label: "eliminar", run: (id) => deleteCategoria(id) },
-      hideDelete: !isAdmin,
+      ...perms,
     }),
-    [isAdmin],
+    [perms],
   );
 
   return <CrudClient config={config} rows={initialRows} />;

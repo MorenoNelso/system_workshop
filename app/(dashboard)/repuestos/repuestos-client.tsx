@@ -9,6 +9,7 @@ import {
 } from "@/lib/actions/repuestos";
 import { registrarMovimiento } from "@/lib/actions/inventario";
 import { executeOrEnqueue } from "@/lib/offline/queue";
+import { crudRoleOverrides } from "@/lib/role-utils";
 
 interface Props {
   initialRows: Record<string, unknown>[];
@@ -25,7 +26,7 @@ export function RepuestosClient({
   monedas,
   userRole,
 }: Props) {
-  const isAdmin = userRole === "administrador";
+  const perms = crudRoleOverrides(userRole);
   const [entradaRepuesto, setEntradaRepuesto] = useState<Record<string, unknown> | null>(null);
   const [cantidad, setCantidad] = useState("1");
   const [motivo, setMotivo] = useState("");
@@ -140,7 +141,7 @@ export function RepuestosClient({
       },
       update: { label: "editar", run: (id, r) => updateRepuesto(id, r) },
       delete: { label: "eliminar", run: (id) => deleteRepuesto(id) },
-      hideDelete: !isAdmin,
+      ...perms,
       rowActions: [
         {
           label: "+ Entrada",
@@ -155,7 +156,7 @@ export function RepuestosClient({
         },
       ],
     }),
-    [categorias, proveedores, monedas, isAdmin],
+    [categorias, proveedores, monedas, perms],
   );
 
   async function guardarEntrada(e: React.FormEvent) {

@@ -10,6 +10,8 @@ import {
   type ResumenEmpleado,
 } from "@/lib/actions/empleados";
 
+import { crudRoleOverrides } from "@/lib/role-utils";
+
 interface Props {
   initialRows: Record<string, unknown>[];
   monedas: { id: string; codigo: string; simbolo: string }[];
@@ -18,7 +20,7 @@ interface Props {
 }
 
 export function EmpleadosClient({ initialRows, monedas, resumen, userRole }: Props) {
-  const isAdmin = userRole === "administrador";
+  const perms = crudRoleOverrides(userRole, { allowCreateForColaborador: false });
 
   const resumenMap = useMemo(() => {
     const map: Record<string, ResumenEmpleado> = {};
@@ -148,10 +150,9 @@ export function EmpleadosClient({ initialRows, monedas, resumen, userRole }: Pro
       create: { label: "crear", run: (_id, r) => createEmpleado(r) },
       update: { label: "editar", run: (id, r) => updateEmpleado(id, r) },
       delete: { label: "eliminar", run: (id) => deleteEmpleado(id) },
-      hideCreate: !isAdmin,
-      hideDelete: !isAdmin,
+      ...perms,
     }),
-    [monedas, resumenMap, isAdmin],
+    [monedas, resumenMap, perms],
   );
 
   return <CrudClient config={config} rows={initialRows} />;

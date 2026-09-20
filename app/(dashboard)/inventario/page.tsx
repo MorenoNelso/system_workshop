@@ -16,7 +16,7 @@ interface MovimientoRow {
 }
 
 export default async function InventarioPage() {
-  await requireRole("administrador");
+  await requireRole("administrador", "colaborador");
   const movimientos = await safeQuery(listMovimientos());
 
   const getTipoBadge = (tipo: string) => {

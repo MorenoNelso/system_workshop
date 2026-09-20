@@ -28,7 +28,7 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 ## Roles del sistema
 
 - `administrador` — acceso total (catálogo, facturación, contabilidad, usuarios, auditoría, tasas).
-- `colaborador` — acceso operativo: ve clientes, motos, repuestos, mecánicos (necesario para crear órdenes/facturas), pero **no** puede gestionar catálogo, ver reportes financieros, modificar tasas, ni eliminar registros.
+- `colaborador` — acceso operativo: ve clientes, motos, repuestos, mecánicos y kardex (necesario para crear órdenes/facturas), pero **no** puede gestionar catálogo, ver reportes financieros, modificar tasas, ni eliminar registros.
 
 > La verificación de rol **siempre** se hace en el servidor (middleware de Next.js + RLS de Supabase). Nunca confiar en checks del frontend.
 
@@ -36,7 +36,7 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 
 | Server action | Rol requerido | Notas |
 |---|---|---|
-| `listClientes`, `listRepuestos`, `listMecanicosActivos` | Cualquier autenticado | Necesario para workflows de órdenes/facturas |
+| `listClientes`, `listRepuestos`, `listMecanicosActivos`, `listMovimientos` | Cualquier autenticado | Necesario para workflows de órdenes/facturas |
 | `createCliente`, `updateCliente` | Cualquier autenticado | Clientes se crean desde facturación y órdenes |
 | `deleteCliente`, `deleteRepuesto`, `deleteOrden`, `eliminarManoObraDeOrden` | Admin (via `requireEliminar`) | Eliminación restringida |
 | `listEmpleados`, `getResumenEmpleados`, `create/update/deleteEmpleado` | Admin | Datos de salarios/comisiones |
@@ -45,6 +45,21 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 | `listDeducciones`, `createDeduccion`, `deleteDeduccion`, `getDeduccionesPorMecanico` | Admin | Contabilidad |
 | `listUsuarios`, `crearUsuario`, `toggleUsuarioActivo`, `cambiarRolUsuario` | Admin | Gestión de usuarios |
 | `registrarTasa` | Admin | Tasas de cambio |
+
+### Acceso a páginas por rol
+
+| Página | Admin | Colaborador | Protección CRUD |
+|---|---|---|---|
+| Clientes | ✅ Full | ✅ Ver + crear/editar | `hideDelete: !isAdmin` |
+| Motos | ✅ Full | ✅ Ver + crear/editar | `hideDelete: !isAdmin` |
+| Repuestos | ✅ Full | ✅ Ver + crear/editar | `hideDelete: !isAdmin` |
+| Inventario (Kardex) | ✅ Full | ✅ Solo ver | Página read-only |
+| Proveedores | ✅ Full | ❌ No accede | `requireRole("administrador")` |
+| Categorías | ✅ Full | ❌ No accede | `requireRole("administrador")` |
+| Empleados | ✅ Full | ✅ Ver (sin crear/editar) | `hideCreate + hideDelete: !isAdmin` |
+| Facturas | ✅ Full | ✅ Ver | `hideDelete` |
+| Órdenes | ✅ Full | ✅ Full | Permisos por estado |
+| Dashboard | ✅ Todo taller | ✅ Solo "Mi producción" | Filtro por rol en server |
 
 ---
 
