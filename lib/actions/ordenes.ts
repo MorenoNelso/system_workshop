@@ -95,7 +95,7 @@ export async function getOrdenById(id: string): Promise<OrdenDetalle | null> {
   const { data: orden, error: ordenErr } = await supabase
     .from("ordenes_servicio")
     .select(
-      "*, cliente:clientes(*), moto:motos(*), empleado_asignado:empleados(*)",
+      "*, cliente:clientes(*), moto:motos(*), empleado_asignado:empleados(id, nombre)",
     )
     .eq("id", id)
     .single();

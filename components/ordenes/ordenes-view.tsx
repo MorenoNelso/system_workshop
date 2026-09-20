@@ -42,6 +42,7 @@ interface Props {
   clientes: ClienteLite[];
   motos: MotoLite[];
   empleados: EmpleadoLite[];
+  esAdmin: boolean;
 }
 
 const ESTADOS = [
@@ -52,7 +53,7 @@ const ESTADOS = [
   { id: "entregado", label: "Entregadas", color: "bg-emerald-100 text-emerald-800 border-emerald-200" },
 ];
 
-export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Props) {
+export function OrdenesView({ initialOrdenes, clientes, motos, empleados, esAdmin }: Props) {
   const router = useRouter();
   const [filtroEstado, setFiltroEstado] = useState("todos");
   const [busqueda, setBusqueda] = useState("");
@@ -155,12 +156,16 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
 
   async function handleDelete(id: string) {
     if (!confirm("¿Estás seguro de eliminar esta orden?")) return;
-    const res = await deleteOrden(id);
-    if (!res.ok) {
-      setError(res.error);
-      return;
+    try {
+      const res = await deleteOrden(id);
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("No se pudo eliminar la orden, intenta de nuevo.");
     }
-    router.refresh();
   }
 
   const getBadge = (estado: string) => {
@@ -292,13 +297,15 @@ export function OrdenesView({ initialOrdenes, clientes, motos, empleados }: Prop
                         >
                           Ver Detalle / Trabajar →
                         </Link>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(orden.id)}
-                          className="rounded-lg px-2 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                        >
-                          Eliminar
-                        </button>
+                        {esAdmin && (
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(orden.id)}
+                            className="rounded-lg px-2 py-1.5 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                          >
+                            Eliminar
+                          </button>
+                        )}
                       </div>
                     </td>
                   </tr>

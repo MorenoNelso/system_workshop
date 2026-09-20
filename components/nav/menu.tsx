@@ -59,12 +59,16 @@ export function NavMenu({ esAdmin }: Props) {
     {
       titulo: "Catálogo",
       items: [
-        { href: "/clientes", label: "Clientes" },
-        { href: "/motos", label: "Motos" },
-        { href: "/repuestos", label: "Repuestos" },
-        { href: "/categorias", label: "Categorías" },
-        { href: "/proveedores", label: "Proveedores" },
-        { href: "/empleados", label: "Empleados / Mecánicos" },
+        ...(esAdmin
+          ? [
+              { href: "/clientes", label: "Clientes" },
+              { href: "/motos", label: "Motos" },
+              { href: "/repuestos", label: "Repuestos" },
+              { href: "/categorias", label: "Categorías" },
+              { href: "/proveedores", label: "Proveedores" },
+              { href: "/empleados", label: "Empleados / Mecánicos" },
+            ]
+          : []),
       ],
     },
     ...(esAdmin

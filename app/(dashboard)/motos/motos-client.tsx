@@ -9,9 +9,11 @@ import { executeOrEnqueue } from "@/lib/offline/queue";
 interface Props {
   initialRows: Record<string, unknown>[];
   clientes: { id: string; nombre: string }[];
+  userRole: string;
 }
 
-export function MotosClient({ initialRows, clientes }: Props) {
+export function MotosClient({ initialRows, clientes, userRole }: Props) {
+  const isAdmin = userRole === "administrador";
   const config: CrudConfig = useMemo(
     () => ({
       title: "Motos",
@@ -49,8 +51,9 @@ export function MotosClient({ initialRows, clientes }: Props) {
       },
       update: { label: "editar", run: (id, r) => updateMoto(id, r) },
       delete: { label: "eliminar", run: (id) => deleteMoto(id) },
+      hideDelete: !isAdmin,
     }),
-    [clientes],
+    [clientes, isAdmin],
   );
 
   return <CrudClient config={config} rows={initialRows} />;

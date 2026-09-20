@@ -59,7 +59,10 @@ export async function createDeduccion(raw: unknown): Promise<ActionResult> {
 }
 
 export async function deleteDeduccion(id: string): Promise<ActionResult> {
-  await requireRole("administrador");
+  const user = await requireRole("administrador");
+  if (!(await rateLimitAdmin(user.id))) {
+    return { ok: false, error: "Demasiadas peticiones. Espera unos minutos e intenta de nuevo." };
+  }
   const supabase = await db();
   const { error } = await supabase.from("deducciones_mecanico").delete().eq("id", id);
   if (error) return { ok: false, error: friendlyDbError("eliminar la deducción") };

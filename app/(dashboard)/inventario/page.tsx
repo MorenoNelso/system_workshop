@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { listMovimientos } from "@/lib/actions/inventario";
+import { requireRole } from "@/lib/auth/session";
 import { safeQuery } from "@/lib/safe-query";
 
 export const metadata: Metadata = { title: "Movimientos de Inventario — Pacho Motos" };
@@ -15,6 +16,7 @@ interface MovimientoRow {
 }
 
 export default async function InventarioPage() {
+  await requireRole("administrador");
   const movimientos = await safeQuery(listMovimientos());
 
   const getTipoBadge = (tipo: string) => {

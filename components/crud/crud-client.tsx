@@ -149,15 +149,23 @@ export function CrudClient({ config, rows: initialRows }: Props) {
     const id = getRowId(row);
     setConfirmDelete(null);
     setPending(id);
-    const res = await config.delete.run(id, {});
-    setPending(null);
-    submittingRef.current = false;
-    if (!res.ok) {
-      setError(res.error);
-      return;
+    try {
+      const res = await config.delete.run(id, {});
+      setPending(null);
+      submittingRef.current = false;
+      if (!res.ok) {
+        setError(res.error);
+        return;
+      }
+      setRows((prev) => prev.filter((r) => getRowId(r) !== id));
+      showSuccess(`${config.singular} eliminado correctamente.`);
+    } catch (err) {
+      setPending(null);
+      submittingRef.current = false;
+      setError(
+        err instanceof Error ? err.message : "No se pudo eliminar, intenta de nuevo",
+      );
     }
-    setRows((prev) => prev.filter((r) => getRowId(r) !== id));
-    showSuccess(`${config.singular} eliminado correctamente.`);
   }
 
   const rowsFiltradas = useMemo(() => {

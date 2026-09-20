@@ -5,11 +5,13 @@ import { listOrdenes } from "@/lib/actions/ordenes";
 import { listClientes } from "@/lib/actions/clientes";
 import { listMotos } from "@/lib/actions/motos";
 import { listMecanicosActivos } from "@/lib/actions/empleados";
+import { getCurrentUser } from "@/lib/auth/session";
 import { safeQuery } from "@/lib/safe-query";
 
 export const metadata: Metadata = { title: "Órdenes de Servicio — Pacho Motos" };
 
 export default async function OrdenesPage() {
+  const user = await getCurrentUser();
   const [ordenes, clientes, motos, empleados] = await Promise.all([
     safeQuery(listOrdenes()),
     safeQuery(listClientes()),
@@ -23,6 +25,7 @@ export default async function OrdenesPage() {
       clientes={clientes}
       motos={motos}
       empleados={empleados}
+      esAdmin={user?.rol === "administrador"}
     />
   );
 }

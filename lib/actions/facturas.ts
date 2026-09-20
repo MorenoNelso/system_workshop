@@ -15,7 +15,7 @@ import {
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
-import { rateLimitFactura, rateLimitPago } from "@/lib/rate-limit";
+import { rateLimitFactura, rateLimitPago, rateLimitAdmin } from "@/lib/rate-limit";
 
 const PATH = "/facturas";
 
@@ -377,15 +377,16 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
 
   const { data, error: insErr } = await supabase
     .from("facturas")
-    .insert({
-      orden_id,
-      cliente_id: orden.cliente_id,
-      subtotal: totalFinal,
-      total: totalFinal,
-      moneda_id,
-      tasa_aplicada: tasaAplicada,
-      estado_pago: "pendiente",
-    })
+      .insert({
+        orden_id,
+        cliente_id: orden.cliente_id,
+        subtotal: totalFinal,
+        total: totalFinal,
+        moneda_id,
+        tasa_aplicada: tasaAplicada,
+        estado_pago: "pendiente",
+        usuario_id: user.id,
+      } as Record<string, unknown>)
     .select("*, moneda:monedas(codigo, simbolo, nombre)")
     .single();
 
@@ -573,7 +574,8 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
       moneda_id,
       tasa_aplicada: tasaAplicada,
       estado_pago: "pendiente",
-    })
+      usuario_id: user.id,
+    } as Record<string, unknown>)
     .select("*, moneda:monedas(codigo, simbolo, nombre)")
     .single();
 
@@ -709,15 +711,24 @@ export async function registrarPago(raw: unknown): Promise<ActionResult> {
 export async function anularFactura(id: string): Promise<ActionResult> {
   const user = await requireRole("administrador", "colaborador");
 
+  if (!(await rateLimitAdmin(user.id))) {
+    return { ok: false, error: "Demasiadas peticiones. Espera unos minutos e intenta de nuevo." };
+  }
+
   const supabase = await db();
 
   const { data: factura, error } = await supabase
     .from("facturas")
-    .select("id, estado_pago")
+    .select("id, estado_pago, usuario_id")
     .eq("id", id)
-    .single();
+    .single() as { data: { id: string; estado_pago: string; usuario_id: string | null } | null; error: unknown };
   if (error || !factura) {
     return { ok: false, error: "La factura no existe." };
+  }
+  // Solo el admin puede anular facturas de otros usuarios.
+  // tolerancia a NULL: facturas antiguas sin usuario_id son anulables por cualquiera.
+  if (user.rol !== "administrador" && factura.usuario_id !== null && factura.usuario_id !== user.id) {
+    return { ok: false, error: "No tienes permiso para anular esta factura." };
   }
   if (factura.estado_pago === "anulada") {
     return { ok: false, error: "La factura ya está anulada." };
@@ -784,6 +795,10 @@ export async function anularFactura(id: string): Promise<ActionResult> {
  */
 export async function deleteFactura(id: string): Promise<ActionResult> {
   const user = await requireRole("administrador");
+
+  if (!(await rateLimitAdmin(user.id))) {
+    return { ok: false, error: "Demasiadas peticiones. Espera unos minutos e intenta de nuevo." };
+  }
 
   const supabase = await db();
 

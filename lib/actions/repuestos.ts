@@ -9,7 +9,7 @@ import {
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
-import { requireUser } from "@/lib/auth/session";
+import { requireUser, requireRole } from "@/lib/auth/session";
 
 const PATH = "/repuestos";
 
@@ -95,7 +95,7 @@ export async function updateRepuesto(
 ): Promise<ActionResult> {
   const parsed = validate(repuestoSchema, raw);
   if (!parsed.ok) return parsed;
-  const user = await requireUser();
+  const user = await requireRole("administrador");
   const supabase = await db();
 
   // Leer el stock actual para calcular el delta (si cambió).

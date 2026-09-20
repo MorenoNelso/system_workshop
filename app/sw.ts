@@ -1,7 +1,7 @@
 /// <reference lib="esnext" />
 /// <reference lib="webworker" />
 import type { PrecacheEntry, SerwistGlobalConfig } from "serwist";
-import { Serwist, NetworkOnly, NetworkFirst, StaleWhileRevalidate } from "serwist";
+import { Serwist, NetworkFirst, StaleWhileRevalidate } from "serwist";
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -11,20 +11,16 @@ declare global {
 
 declare const self: ServiceWorkerGlobalScope;
 
-// Excluir requests RSC (_rsc) y chunks del SW.
-// RSC = React Server Component fetches (navegación client-side).
-// Si el SW los intercepta con NetworkFirst, falla offline y causa loop infinito.
+// Reglas de caching para el Service Worker.
+// RSC (_rsc) y chunks estáticos NO se interceptan — el browser los maneja.
 const runtimeCaching = [
-  {
-    matcher: ({ url }: { url: URL }) =>
-      url.searchParams.has("_rsc") ||
-      url.pathname.startsWith("/_next/static/"),
-    handler: new NetworkOnly(),
-  },
   {
     matcher: ({ request }: { request: Request }) =>
       request.destination === "document",
-    handler: new NetworkOnly(),
+    handler: new NetworkFirst({
+      cacheName: "document-cache",
+      networkTimeoutSeconds: 3,
+    }),
   },
   {
     matcher: ({ request }: { request: Request }) =>

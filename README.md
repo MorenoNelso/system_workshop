@@ -91,3 +91,7 @@ Hosting en Netlify. Configuración en `netlify.toml`.
 ## Licencia
 
 Privado — Pacho Motos.
+
+---
+
+> **Bitácora de Buzz Lightyear:** Esto está casi listo. 🚀

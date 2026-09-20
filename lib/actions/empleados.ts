@@ -120,6 +120,7 @@ export interface ResumenEmpleado {
 }
 
 export async function getResumenEmpleados(): Promise<ResumenEmpleado[]> {
+  await requireRole("administrador");
   const supabase = await db();
 
   // Ejecutar las 3 queries en paralelo

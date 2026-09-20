@@ -5,6 +5,7 @@ import { z } from "zod";
 import { requireRole } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { rateLimitAdmin } from "@/lib/rate-limit";
 
 export interface UsuarioRow {
   id: string;
@@ -46,7 +47,11 @@ export async function crearUsuario(
   _prev: CrearUsuarioState,
   formData: FormData,
 ): Promise<CrearUsuarioState> {
-  await requireRole("administrador");
+  const user = await requireRole("administrador");
+
+  if (!(await rateLimitAdmin(user.id))) {
+    return { message: "Demasiadas peticiones. Espera unos minutos e intenta de nuevo." };
+  }
 
   const parsed = createUsuarioSchema.safeParse({
     email: formData.get("email"),

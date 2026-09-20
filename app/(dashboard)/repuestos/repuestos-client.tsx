@@ -15,6 +15,7 @@ interface Props {
   categorias: { id: string; nombre: string }[];
   proveedores: { id: string; nombre: string }[];
   monedas: { id: string; codigo: string; nombre: string; simbolo: string }[];
+  userRole: string;
 }
 
 export function RepuestosClient({
@@ -22,7 +23,9 @@ export function RepuestosClient({
   categorias,
   proveedores,
   monedas,
+  userRole,
 }: Props) {
+  const isAdmin = userRole === "administrador";
   const [entradaRepuesto, setEntradaRepuesto] = useState<Record<string, unknown> | null>(null);
   const [cantidad, setCantidad] = useState("1");
   const [motivo, setMotivo] = useState("");
@@ -137,6 +140,7 @@ export function RepuestosClient({
       },
       update: { label: "editar", run: (id, r) => updateRepuesto(id, r) },
       delete: { label: "eliminar", run: (id) => deleteRepuesto(id) },
+      hideDelete: !isAdmin,
       rowActions: [
         {
           label: "+ Entrada",
@@ -151,7 +155,7 @@ export function RepuestosClient({
         },
       ],
     }),
-    [categorias, proveedores, monedas],
+    [categorias, proveedores, monedas, isAdmin],
   );
 
   async function guardarEntrada(e: React.FormEvent) {
