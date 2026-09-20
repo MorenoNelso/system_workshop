@@ -3,7 +3,7 @@
 import { gastoSchema, validate } from "@/lib/schemas";
 import { requireRole } from "@/lib/auth/session";
 import { rateLimitAdmin } from "@/lib/rate-limit";
-import { convertir, construirTasasVigentes } from "@/lib/currency";
+import { convertir, getTasasVigentes } from "@/lib/currency";
 import {
   db,
   friendlyDbError,
@@ -94,14 +94,10 @@ export async function getResumenGastos(
 
   if (error || !data) return { total: 0, porCategoria: {} };
 
-  // Obtener moneda base y tasas para convertir
+  // Obtener moneda base y tasas vigentes (ordenadas por fecha)
   const { data: monedas } = await supabase.from("monedas").select("id, codigo").order("codigo");
   const monedaBase = monedas?.[0];
-  const { data: tasasRows } = await supabase
-    .from("tasas_cambio")
-    .select("moneda_origen_id, moneda_destino_id, tasa, fecha")
-    .eq("activa", true);
-  const tasasMap = construirTasasVigentes(tasasRows ?? []);
+  const tasasMap = await getTasasVigentes(supabase);
 
   let total = 0;
   const porCategoria: Record<string, number> = {};

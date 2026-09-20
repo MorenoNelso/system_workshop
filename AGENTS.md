@@ -27,10 +27,24 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 
 ## Roles del sistema
 
-- `admin` — acceso total.
-- `mecanico` / `recepcion` — acceso operativo restringido: no pueden ver reportes financieros completos, no pueden modificar tasas de cambio, no pueden eliminar registros históricos.
+- `administrador` — acceso total (catálogo, facturación, contabilidad, usuarios, auditoría, tasas).
+- `colaborador` — acceso operativo: ve clientes, motos, repuestos, mecánicos (necesario para crear órdenes/facturas), pero **no** puede gestionar catálogo, ver reportes financieros, modificar tasas, ni eliminar registros.
 
 > La verificación de rol **siempre** se hace en el servidor (middleware de Next.js + RLS de Supabase). Nunca confiar en checks del frontend.
+
+### Patrones de acceso por función
+
+| Server action | Rol requerido | Notas |
+|---|---|---|
+| `listClientes`, `listRepuestos`, `listMecanicosActivos` | Cualquier autenticado | Necesario para workflows de órdenes/facturas |
+| `createCliente`, `updateCliente` | Cualquier autenticado | Clientes se crean desde facturación y órdenes |
+| `deleteCliente`, `deleteRepuesto`, `deleteOrden`, `eliminarManoObraDeOrden` | Admin (via `requireEliminar`) | Eliminación restringida |
+| `listEmpleados`, `getResumenEmpleados`, `create/update/deleteEmpleado` | Admin | Datos de salarios/comisiones |
+| `create/update/deleteFactura`, `registrarPago`, `anularFactura` | Admin | Solo admin gestiona facturación |
+| `listGastos`, `createGasto`, `deleteGasto`, `getResumenGastos` | Admin | Contabilidad |
+| `listDeducciones`, `createDeduccion`, `deleteDeduccion`, `getDeduccionesPorMecanico` | Admin | Contabilidad |
+| `listUsuarios`, `crearUsuario`, `toggleUsuarioActivo`, `cambiarRolUsuario` | Admin | Gestión de usuarios |
+| `registrarTasa` | Admin | Tasas de cambio |
 
 ---
 
@@ -41,7 +55,7 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 - **Next.js** scaffoldeado con App Router + TypeScript, ESLint configurado, `npm run dev` corre sin errores.
 - **Repositorio Git** privado en GitHub (`MorenoNelso/system_workshop`), `.gitignore` correcto, `.env` fuera de git.
 - **Supabase** — Base de datos completamente lista:
-  - **17 tablas** creadas con RLS activo y políticas base en todas ellas.
+  - **17 tablas** → **21 tablas** (incluye `factura_detalle_repuestos`, `factura_detalle_servicios`, `deducciones_mecanico`, `monedas`) creadas con RLS activo y políticas base en todas ellas.
   - Función `get_user_role()` disponible.
   - **3 triggers/funciones de negocio**: auditoría automática, actualización de stock, cálculo de comisión.
   - SQL documentado en `docs/schema-inicial-taller-motos.sql` y `docs/funciones-triggers-taller-motos.sql`.
@@ -82,6 +96,17 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 Tablas: `monedas`, `tasas_cambio`, `configuracion_sistema`, `usuarios`, `empleados`, `clientes`, `motos`, `categorias_repuesto`, `proveedores`, `repuestos`, `movimientos_inventario`, `ordenes_servicio`, `orden_detalle_repuestos`, `orden_detalle_mano_obra`, `facturas`, `pagos`, `logs_auditoria`.
 
 **Regla de oro de monedas:** toda tabla con montos (`facturas`, `orden_detalle_repuestos`, `orden_detalle_mano_obra`, `pagos`) guarda su `moneda_id` y el snapshot de `tasa_aplicada`. **Nunca recalcular documentos históricos** con la tasa actual.
+
+### Flujo de precios y conversión
+
+| Nivel | Qué pasa | Cambia al cambiar tasa? |
+|---|---|---|
+| Catálogo (`repuestos.precio_venta`, `precio_costo`) | Admin fija precio manualmente en una moneda. Se guarda estático. | **No** — el admin debe re-editar |
+| Snapshot en orden (`orden_detalle_repuestos.precio_unitario_aplicado`) | Se congela el precio al agregar repuesto a la orden. | **No** — inmutable |
+| Snapshot en factura (`facturas.total`, `tasa_aplicada`) | Se convierte con la tasa vigente al facturar y se congela para siempre. | **No** — congelado permanentemente |
+| Conversión en pantalla (`convertir()`) | Solo para mostrar equivalencias. Usa tasa vigente. | **Sí** — se recalcula cada vez |
+
+> Siempre usar `getTasasVigentes()` (que ordena por fecha descendente) para obtener la tasa más reciente. Nunca hacer queries manuales a `tasas_cambio` sin ordenamiento.
 
 ---
 
@@ -171,7 +196,7 @@ Paleta oficial **Pacho Motos** (definida en `app/globals.css` como tokens `brand
 - **Prefetch** activado en los `<Link>` del menú (`components/nav/menu.tsx`) y el header → navegación instantánea (shell estático + streaming del contenido dinámico).
 - `lib/currency.ts` expone `construirTasasVigentes()` (lógica pura, testeable) separada de la consulta `getTasasVigentes()`.
 - **No usar `use cache`** en funciones que leen `cookies()` (session) — Next 16 lo prohíbe. `getCurrentUser`, `getConfiguracion` y `getTasasVigentes` se memoizan por request con `React.cache()`.
-- El modo offline (PWA) está pendiente de implementar (Fase 2): manifest + service worker (Serwist) + cola de facturas en IndexedDB con subida semi-manual.
+- **PWA offline** habilitada (`manifest.webmanifest` + `app/sw.ts`). Service Worker desactivado por defecto (`NEXT_PUBLIC_ENABLE_SW` no seteado). Para activar: `NEXT_PUBLIC_ENABLE_SW=true` en `.env.local`. Sync manual (no automática).
 
 ---
 
