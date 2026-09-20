@@ -94,4 +94,4 @@ Privado — Pacho Motos.
 
 ---
 
-> **Bitácora de Buzz Lightyear:** Esto está casi listo. 🚀
+> **Bitácora de Buzz Lightyear:** Ya está listo. 🚀
