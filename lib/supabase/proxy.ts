@@ -8,7 +8,7 @@ import type { Database } from "@/types/database.types";
  * Rutas públicas — accesibles sin sesión iniciada.
  * El resto de rutas de la app son protegidas por defecto.
  */
-const PUBLIC_PATHS = ["/login", "/recuperar"];
+const PUBLIC_PATHS = ["/login", "/recuperar", "/test-sentry"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(

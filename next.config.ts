@@ -25,32 +25,32 @@ const securityHeaders = [
   },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
+    value: "camera=(), microphone=(), geolocation=(), browsing-topics()",
   },
-  {
-    key: "Content-Security-Policy",
-    value: [
-      "default-src 'self'",
-      // React dev necesita `unsafe-eval` para debug (callstacks). En producción no.
-      // NOTA: 'unsafe-inline' es necesario para React hydration (__NEXT_DATA__, chunks).
-      // Para eliminarlo, implementar nonces por request via middleware + layout.
-      // Riesgo aceptado: usuarios internos (1-3 personas), no público.
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
-      "style-src 'self' 'unsafe-inline'",
-      `img-src 'self' data: ${supabaseUrl} https://o4511990296346624.ingest.us.sentry.io`,
-      "font-src 'self'",
-      `connect-src 'self' ${supabaseUrl} wss://${supabaseUrl.replace("https://", "")} https://o4511990296346624.ingest.us.sentry.io`,
-      "worker-src 'self' blob:",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "object-src 'none'",
-    ].join("; "),
-  },
-  {
-    key: "Cross-Origin-Opener-Policy",
-    value: isDev ? "same-origin-allow-popups" : "same-origin",
-  },
+  ...(!isDev
+    ? [
+        {
+          key: "Content-Security-Policy",
+          value: [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline'",
+            "style-src 'self' 'unsafe-inline'",
+            `img-src 'self' data: ${supabaseUrl} https://o4511990296346624.ingest.us.sentry.io`,
+            "font-src 'self'",
+            `connect-src 'self' ${supabaseUrl} wss://${supabaseUrl.replace("https://", "")} https://o4511990296346624.ingest.us.sentry.io`,
+            "worker-src 'self' blob:",
+            "frame-ancestors 'none'",
+            "base-uri 'self'",
+            "form-action 'self'",
+            "object-src 'none'",
+          ].join("; "),
+        },
+        {
+          key: "Cross-Origin-Opener-Policy",
+          value: "same-origin",
+        },
+      ]
+    : []),
 ];
 
 const nextConfig: NextConfig = {
