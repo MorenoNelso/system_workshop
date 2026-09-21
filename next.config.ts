@@ -40,6 +40,7 @@ const securityHeaders = [
       `img-src 'self' data: ${supabaseUrl} https://o4511990296346624.ingest.us.sentry.io`,
       "font-src 'self'",
       `connect-src 'self' ${supabaseUrl} wss://${supabaseUrl.replace("https://", "")} https://o4511990296346624.ingest.us.sentry.io`,
+      "worker-src 'self' blob:",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
@@ -48,7 +49,7 @@ const securityHeaders = [
   },
   {
     key: "Cross-Origin-Opener-Policy",
-    value: "same-origin",
+    value: isDev ? "same-origin-allow-popups" : "same-origin",
   },
 ];
 
