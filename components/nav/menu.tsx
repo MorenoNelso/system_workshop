@@ -34,10 +34,10 @@ export function NavMenu({ esAdmin }: Props) {
       }
     }
     document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onClick);
+    document.addEventListener("pointerdown", onClick);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("pointerdown", onClick);
     };
   }, [open]);
 
