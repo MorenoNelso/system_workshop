@@ -8,7 +8,7 @@ import type { Database } from "@/types/database.types";
  * Rutas públicas — accesibles sin sesión iniciada.
  * El resto de rutas de la app son protegidas por defecto.
  */
-const PUBLIC_PATHS = ["/login", "/recuperar", "/test-sentry"];
+const PUBLIC_PATHS = ["/login", "/recuperar"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some(
@@ -112,8 +112,7 @@ export async function updateSession(
     user &&
     !mfaPending &&
     publicRoute &&
-    !request.nextUrl.searchParams.has("redirect") &&
-    pathname !== "/test-sentry"
+    !request.nextUrl.searchParams.has("redirect")
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
