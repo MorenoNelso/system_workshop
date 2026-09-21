@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { SerwistProvider } from "@serwist/turbopack/react";
 import { PwaOfflineBanner } from "@/components/pwa/pwa-offline-banner";
@@ -13,6 +13,15 @@ const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: "cover",
+  themeColor: "#1234ab",
+};
 
 export const metadata: Metadata = {
   title: "Pacho Motos",
