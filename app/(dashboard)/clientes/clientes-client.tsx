@@ -8,11 +8,11 @@ import {
   deleteCliente,
 } from "@/lib/actions/clientes";
 import { executeOrEnqueue } from "@/lib/offline/queue";
-import { crudRoleOverrides } from "@/lib/role-utils";
+import { crudRoleOverrides, type RolUsuario } from "@/lib/role-utils";
 
 interface Props {
   initialRows: Record<string, unknown>[];
-  userRole: string;
+  userRole: RolUsuario;
 }
 
 export function ClientesClient({ initialRows, userRole }: Props) {

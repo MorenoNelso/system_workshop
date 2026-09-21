@@ -9,35 +9,35 @@ import {
 } from "@/lib/facturas-utils";
 
 describe("ordenYaTieneFactura", () => {
-  it("false when null", () => expect(ordenYaTieneFactura(null)).toBe(false));
-  it("false when undefined", () => expect(ordenYaTieneFactura(undefined)).toBe(false));
-  it("false when empty array", () => expect(ordenYaTieneFactura([])).toBe(false));
-  it("true when array with items", () => expect(ordenYaTieneFactura([{ id: "1" }])).toBe(true));
-  it("true when object", () => expect(ordenYaTieneFactura({ id: "1" })).toBe(true));
+  it("false cuando es null", () => expect(ordenYaTieneFactura(null)).toBe(false));
+  it("false cuando es undefined", () => expect(ordenYaTieneFactura(undefined)).toBe(false));
+  it("false cuando el array está vacío", () => expect(ordenYaTieneFactura([])).toBe(false));
+  it("true cuando el array tiene items", () => expect(ordenYaTieneFactura([{ id: "1" }])).toBe(true));
+  it("true cuando es un objeto", () => expect(ordenYaTieneFactura({ id: "1" })).toBe(true));
 });
 
 describe("ordenEsFacturable", () => {
-  it("true for terminado", () => expect(ordenEsFacturable("terminado")).toBe(true));
-  it("true for entregado", () => expect(ordenEsFacturable("entregado")).toBe(true));
-  it("false for recibido", () => expect(ordenEsFacturable("recibido")).toBe(false));
-  it("false for en_proceso", () => expect(ordenEsFacturable("en_proceso")).toBe(false));
-  it("false for unknown", () => expect(ordenEsFacturable("xyz")).toBe(false));
-  it("ESTADOS_FACTURABLES has exactly 2 items", () => {
+  it("true para terminado", () => expect(ordenEsFacturable("terminado")).toBe(true));
+  it("true para entregado", () => expect(ordenEsFacturable("entregado")).toBe(true));
+  it("false para recibido", () => expect(ordenEsFacturable("recibido")).toBe(false));
+  it("false para en_proceso", () => expect(ordenEsFacturable("en_proceso")).toBe(false));
+  it("false para estado desconocido", () => expect(ordenEsFacturable("xyz")).toBe(false));
+  it("ESTADOS_FACTURABLES tiene exactamente 2 items", () => {
     expect(ESTADOS_FACTURABLES).toHaveLength(2);
   });
 });
 
 describe("esErrorFacturaDuplicada", () => {
-  it("false for null", () => expect(esErrorFacturaDuplicada(null)).toBe(false));
-  it("true for code 23505", () =>
+  it("false para null", () => expect(esErrorFacturaDuplicada(null)).toBe(false));
+  it("true para code 23505", () =>
     expect(esErrorFacturaDuplicada({ code: "23505", message: "" })).toBe(true));
-  it("true for 'duplicate' in message", () =>
+  it("true para 'duplicate' en message", () =>
     expect(esErrorFacturaDuplicada({ message: "duplicate key" })).toBe(true));
-  it("true for 'ya existe' in message", () =>
+  it("true para 'ya existe' en message", () =>
     expect(esErrorFacturaDuplicada({ message: "el registro ya existe" })).toBe(true));
-  it("true for 'already exists' in message", () =>
+  it("true para 'already exists' en message", () =>
     expect(esErrorFacturaDuplicada({ message: "row already exists" })).toBe(true));
-  it("false for unrelated error", () =>
+  it("false para error no relacionado", () =>
     expect(esErrorFacturaDuplicada({ code: "23503", message: "foreign key" })).toBe(false));
 });
 
@@ -50,18 +50,18 @@ describe("calcularGanancia", () => {
       ],
       [{ monto: 200, comision: 30 }],
     );
-    expect(result.ingreso).toBe(450); // 200 + 50 + 200
-    expect(result.egreso).toBe(120); // 120 + 0
+    expect(result.ingreso).toBe(450);
+    expect(result.egreso).toBe(120);
     expect(result.comision).toBe(30);
-    expect(result.ganancia).toBe(300); // 450 - 120 - 30
+    expect(result.ganancia).toBe(300);
   });
 
-  it("handles empty arrays", () => {
+  it("maneja arrays vacíos", () => {
     const result = calcularGanancia([], []);
     expect(result).toEqual({ ingreso: 0, egreso: 0, comision: 0, ganancia: 0 });
   });
 
-  it("handles null precioCosto", () => {
+  it("maneja precioCosto null", () => {
     const result = calcularGanancia(
       [{ cantidad: 1, precioVenta: 100, precioCosto: null }],
       [],

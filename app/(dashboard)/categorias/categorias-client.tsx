@@ -8,15 +8,15 @@ import {
   deleteCategoria,
 } from "@/lib/actions/categorias";
 import { executeOrEnqueue } from "@/lib/offline/queue";
-import { crudRoleOverrides } from "@/lib/role-utils";
+import { crudRoleOverrides, type RolUsuario } from "@/lib/role-utils";
 
 interface Props {
   initialRows: Record<string, unknown>[];
-  userRole: string;
+  userRole: RolUsuario;
 }
 
 export function CategoriasClient({ initialRows, userRole }: Props) {
-  const perms = crudRoleOverrides(userRole);
+  const perms = crudRoleOverrides(userRole, { allowCreateForColaborador: false });
 
   const config: CrudConfig = useMemo(
     () => ({

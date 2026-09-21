@@ -5,12 +5,12 @@ import { CrudClient } from "@/components/crud/crud-client";
 import type { CrudConfig } from "@/components/crud/types";
 import { updateMoto, deleteMoto } from "@/lib/actions/motos";
 import { executeOrEnqueue } from "@/lib/offline/queue";
-import { crudRoleOverrides } from "@/lib/role-utils";
+import { crudRoleOverrides, type RolUsuario } from "@/lib/role-utils";
 
 interface Props {
   initialRows: Record<string, unknown>[];
   clientes: { id: string; nombre: string }[];
-  userRole: string;
+  userRole: RolUsuario;
 }
 
 export function MotosClient({ initialRows, clientes, userRole }: Props) {

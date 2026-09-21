@@ -9,14 +9,14 @@ import {
 } from "@/lib/actions/repuestos";
 import { registrarMovimiento } from "@/lib/actions/inventario";
 import { executeOrEnqueue } from "@/lib/offline/queue";
-import { crudRoleOverrides } from "@/lib/role-utils";
+import { crudRoleOverrides, type RolUsuario } from "@/lib/role-utils";
 
 interface Props {
   initialRows: Record<string, unknown>[];
   categorias: { id: string; nombre: string }[];
   proveedores: { id: string; nombre: string }[];
-  monedas: { id: string; codigo: string; nombre: string; simbolo: string }[];
-  userRole: string;
+  monedas: { id: string; codigo: string; simbolo: string; nombre: string }[];
+  userRole: RolUsuario;
 }
 
 export function RepuestosClient({

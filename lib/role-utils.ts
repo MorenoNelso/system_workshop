@@ -1,12 +1,7 @@
-/**
- * Overrides de permisos para CrudConfig según el rol del usuario.
- *
- * - Admin: acceso completo (crear + eliminar visibles).
- * - Colaborador: crear permitido (por defecto), eliminar oculto.
- * - Para vistas admin-only de creación: pasar `allowCreateForColaborador: false`.
- */
+export type RolUsuario = "administrador" | "colaborador";
+
 export function crudRoleOverrides(
-  userRole: string,
+  userRole: RolUsuario,
   options?: { allowCreateForColaborador?: boolean },
 ): { hideCreate?: boolean; hideDelete?: boolean } {
   const isAdmin = userRole === "administrador";

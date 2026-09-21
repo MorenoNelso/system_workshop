@@ -3,7 +3,7 @@
 import { deduccionSchema, validate } from "@/lib/schemas";
 import { requireRole } from "@/lib/auth/session";
 import { rateLimitAdmin } from "@/lib/rate-limit";
-import { convertir, getTasasVigentes } from "@/lib/currency";
+import { convertir, getMonedaBaseYTasas } from "@/lib/currency";
 import {
   db,
   friendlyDbError,
@@ -102,9 +102,7 @@ export async function getDeduccionesPorMecanico(
   if (error || !data) return [];
 
   // Obtener moneda base y tasas vigentes (ordenadas por fecha)
-  const { data: monedas } = await supabase.from("monedas").select("id, codigo").order("codigo");
-  const monedaBase = monedas?.[0];
-  const tasasMap = await getTasasVigentes(supabase);
+  const { monedaBase, tasas: tasasMap } = await getMonedaBaseYTasas(supabase);
 
   const mapa = new Map<string, { empleadoNombre: string; total: number; cantidad: number }>();
 

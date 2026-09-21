@@ -10,13 +10,13 @@ import {
   type ResumenEmpleado,
 } from "@/lib/actions/empleados";
 
-import { crudRoleOverrides } from "@/lib/role-utils";
+import { crudRoleOverrides, type RolUsuario } from "@/lib/role-utils";
 
 interface Props {
   initialRows: Record<string, unknown>[];
   monedas: { id: string; codigo: string; simbolo: string }[];
   resumen: ResumenEmpleado[];
-  userRole: string;
+  userRole: RolUsuario;
 }
 
 export function EmpleadosClient({ initialRows, monedas, resumen, userRole }: Props) {

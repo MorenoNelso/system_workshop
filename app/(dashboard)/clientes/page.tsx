@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 
 import { listClientes } from "@/lib/actions/clientes";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
 import { safeQuery } from "@/lib/safe-query";
 import { ClientesClient } from "./clientes-client";
 
 export const metadata: Metadata = { title: "Clientes — Pacho Motos" };
 
 export default async function ClientesPage() {
-  const user = await getCurrentUser();
+  const user = await requireUser();
   const rows = await safeQuery(listClientes());
-  return <ClientesClient initialRows={rows} userRole={user?.rol ?? "colaborador"} />;
+  return <ClientesClient initialRows={rows} userRole={user.rol} />;
 }

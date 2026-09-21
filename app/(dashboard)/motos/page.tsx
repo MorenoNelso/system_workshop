@@ -2,14 +2,14 @@ import type { Metadata } from "next";
 
 import { listMotos } from "@/lib/actions/motos";
 import { listClientes } from "@/lib/actions/clientes";
-import { getCurrentUser } from "@/lib/auth/session";
+import { requireUser } from "@/lib/auth/session";
 import { safeQuery } from "@/lib/safe-query";
 import { MotosClient } from "./motos-client";
 
 export const metadata: Metadata = { title: "Motos — Pacho Motos" };
 
 export default async function MotosPage() {
-  const user = await getCurrentUser();
+  const user = await requireUser();
   const [motos, clientes] = await Promise.all([safeQuery(listMotos()), safeQuery(listClientes())]);
 
   const clientOptions = clientes.map((c) => ({
@@ -17,5 +17,5 @@ export default async function MotosPage() {
     nombre: c.nombre,
   }));
 
-  return <MotosClient initialRows={motos} clientes={clientOptions} userRole={user?.rol ?? "colaborador"} />;
+  return <MotosClient initialRows={motos} clientes={clientOptions} userRole={user.rol} />;
 }

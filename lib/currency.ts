@@ -77,3 +77,12 @@ export function fmtMonto(monto: number | null | undefined): string {
   if (monto === null || monto === undefined) return "—";
   return Number(monto).toFixed(2);
 }
+
+export async function getMonedaBaseYTasas(
+  supabase: SupabaseClient<Database>,
+): Promise<{ monedaBase: { id: string; codigo: string } | undefined; tasas: TasasVigentes }> {
+  const { data: monedas } = await supabase.from("monedas").select("id, codigo").order("codigo");
+  const monedaBase = monedas?.[0];
+  const tasas = await getTasasVigentes(supabase);
+  return { monedaBase, tasas };
+}
