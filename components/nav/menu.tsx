@@ -28,16 +28,16 @@ export function NavMenu({ esAdmin }: Props) {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
-    function onClick(e: MouseEvent) {
+    function onPointer(e: PointerEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
     document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onClick);
+    document.addEventListener("pointerdown", onPointer);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onClick);
+      document.removeEventListener("pointerdown", onPointer);
     };
   }, [open]);
 
@@ -93,8 +93,12 @@ export function NavMenu({ esAdmin }: Props) {
     <div ref={ref} className="relative">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-sm font-medium text-zinc-700 transition hover:border-zinc-300 hover:bg-zinc-50"
+        onPointerDown={(e) => {
+          e.stopPropagation();
+          setOpen((o) => !o);
+        }}
+        className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-medium text-zinc-700 transition active:scale-[0.97] hover:border-zinc-300 hover:bg-zinc-50"
+        style={{ touchAction: "manipulation" }}
         aria-expanded={open}
       >
         Menú
