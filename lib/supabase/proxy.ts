@@ -112,7 +112,8 @@ export async function updateSession(
     user &&
     !mfaPending &&
     publicRoute &&
-    !request.nextUrl.searchParams.has("redirect")
+    !request.nextUrl.searchParams.has("redirect") &&
+    pathname !== "/test-sentry"
   ) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
