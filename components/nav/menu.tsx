@@ -22,22 +22,30 @@ export function NavMenu({ esAdmin }: Props) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const justOpened = useRef(false);
 
   useEffect(() => {
     if (!open) return;
+
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setOpen(false);
     }
-    function onPointer(e: PointerEvent) {
+
+    function onPointerDown(e: PointerEvent) {
+      if (justOpened.current) {
+        justOpened.current = false;
+        return;
+      }
       if (ref.current && !ref.current.contains(e.target as Node)) {
         setOpen(false);
       }
     }
+
     document.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("pointerdown", onPointerDown);
     return () => {
       document.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("pointerdown", onPointerDown);
     };
   }, [open]);
 
@@ -89,13 +97,20 @@ export function NavMenu({ esAdmin }: Props) {
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);
 
+  function toggle() {
+    setOpen((o) => {
+      if (!o) justOpened.current = true;
+      return !o;
+    });
+  }
+
   return (
     <div ref={ref} className="relative">
       <button
         type="button"
         onPointerDown={(e) => {
           e.stopPropagation();
-          setOpen((o) => !o);
+          toggle();
         }}
         className="flex min-h-[44px] items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-2.5 text-sm font-medium text-zinc-700 transition active:scale-[0.97] hover:border-zinc-300 hover:bg-zinc-50"
         style={{ touchAction: "manipulation" }}
