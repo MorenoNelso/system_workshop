@@ -290,7 +290,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-  INSERT INTO public.logs_auditoria (tabla, accion, registro_id, datos_nuevos, usuario_id)
+  INSERT INTO public.logs_auditoria (tabla_afectada, accion, registro_id, datos_nuevos, usuario_id)
   VALUES (
     'facturas',
     TG_OP,
@@ -318,7 +318,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-  INSERT INTO public.logs_auditoria (tabla, accion, registro_id, datos_nuevos, usuario_id)
+  INSERT INTO public.logs_auditoria (tabla_afectada, accion, registro_id, datos_nuevos, usuario_id)
   VALUES (
     'pagos',
     TG_OP,
