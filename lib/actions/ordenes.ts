@@ -102,43 +102,82 @@ export async function getOrdenById(id: string): Promise<OrdenDetalle | null> {
 
   if (ordenErr || !orden) return null;
 
-  const [{ data: repuestos }, { data: manoObra }] = await Promise.all([
+  // Lectura plana + resolución por lotes (NO joins embebidos): los joins
+  // fallan en silencio (data null) si falta un FK o el RLS de la tabla
+  // referenciada bloquea, dejando tablas vacías aunque haya filas.
+  const [{ data: repRows, error: repErr }, { data: moRows, error: moErr }] = await Promise.all([
     supabase
       .from("orden_detalle_repuestos")
-      .select("*, repuesto:repuestos(nombre, sku), moneda:monedas(simbolo, codigo)")
+      .select("id, repuesto_id, cantidad, precio_unitario_aplicado, moneda_id")
       .eq("orden_id", id),
     supabase
       .from("orden_detalle_mano_obra")
-      .select("*, empleado:empleados(nombre), moneda:monedas(simbolo, codigo)")
+      .select("id, empleado_id, descripcion, monto, moneda_id, porcentaje_comision_aplicado, comision_calculada, ayudante_id, ayudante_monto")
       .eq("orden_id", id),
   ]);
+  if (repErr) console.error("[getOrdenById] repuestos:", repErr.message);
+  if (moErr) console.error("[getOrdenById] mano_obra:", moErr.message);
+
+  const repR = (repRows ?? []) as unknown as {
+    id: string; repuesto_id: string; cantidad: number;
+    precio_unitario_aplicado: number; moneda_id: string;
+  }[];
+  const moR = (moRows ?? []) as unknown as {
+    id: string; empleado_id: string; descripcion: string; monto: number;
+    moneda_id: string; porcentaje_comision_aplicado: number | null;
+    comision_calculada: number | null; ayudante_id: string | null;
+    ayudante_monto: number | null;
+  }[];
+
+  const repIds = [...new Set(repR.map((r) => r.repuesto_id))];
+  const empIds = [...new Set([...moR.map((m) => m.empleado_id), ...moR.map((m) => m.ayudante_id)].filter((v): v is string => !!v))];
+  const monIds = [...new Set([...repR.map((r) => r.moneda_id), ...moR.map((m) => m.moneda_id)])];
+
+  const [{ data: reps }, { data: emps }, { data: mons }] = await Promise.all([
+    repIds.length > 0
+      ? supabase.from("repuestos").select("id, nombre, sku").in("id", repIds)
+      : Promise.resolve({ data: [] as { id: string; nombre: string; sku: string | null }[] }),
+    empIds.length > 0
+      ? supabase.from("empleados").select("id, nombre").in("id", empIds)
+      : Promise.resolve({ data: [] as { id: string; nombre: string }[] }),
+    monIds.length > 0
+      ? supabase.from("monedas").select("id, simbolo").in("id", monIds)
+      : Promise.resolve({ data: [] as { id: string; simbolo: string }[] }),
+  ]);
+  const repMap: Record<string, { nombre: string; sku: string | null }> = {};
+  for (const r of reps ?? []) repMap[r.id] = { nombre: r.nombre, sku: r.sku };
+  const empMap: Record<string, string> = {};
+  for (const e of emps ?? []) empMap[e.id] = e.nombre;
+  const monMap: Record<string, string> = {};
+  for (const m of mons ?? []) monMap[m.id] = m.simbolo;
+
+  const repuestos: RepuestoDetalleOrden[] = repR.map((r) => ({
+    id: r.id,
+    cantidad: r.cantidad,
+    precio_unitario_aplicado: r.precio_unitario_aplicado,
+    repuesto: repMap[r.repuesto_id]
+      ? { nombre: repMap[r.repuesto_id].nombre, sku: repMap[r.repuesto_id].sku }
+      : null,
+    moneda: monMap[r.moneda_id] ? { simbolo: monMap[r.moneda_id] } : null,
+  }));
 
   // Resolver nombres de ayudantes (no se puede hacer JOIN a la misma tabla dos veces)
-  const ayudanteIds = [...new Set(
-    (manoObra ?? [])
-      .map((m: Record<string, unknown>) => m.ayudante_id)
-      .filter((aid): aid is string => !!aid),
-  )];
-  const ayudantesMap: Record<string, string> = {};
-  if (ayudanteIds.length > 0) {
-    const { data: ayudantes } = await supabase
-      .from("empleados")
-      .select("id, nombre")
-      .in("id", ayudanteIds);
-    for (const a of ayudantes ?? []) {
-      ayudantesMap[a.id] = a.nombre;
-    }
-  }
-
-  const manoObraConAyudante = (manoObra ?? []).map((m: Record<string, unknown>) => ({
-    ...m,
-    ayudante: m.ayudante_id ? { nombre: ayudantesMap[m.ayudante_id as string] ?? null } : null,
+  const manoObra: ManoObraDetalleOrden[] = moR.map((m) => ({
+    id: m.id,
+    descripcion: m.descripcion,
+    monto: m.monto,
+    porcentaje_comision_aplicado: m.porcentaje_comision_aplicado,
+    comision_calculada: m.comision_calculada,
+    ayudante_monto: m.ayudante_monto,
+    empleado: m.empleado_id ? { nombre: empMap[m.empleado_id] ?? null } : null,
+    moneda: monMap[m.moneda_id] ? { simbolo: monMap[m.moneda_id] } : null,
+    ayudante: m.ayudante_id ? { nombre: empMap[m.ayudante_id] ?? null } : null,
   }));
 
   return {
     ...(orden as unknown as OrdenDetalle),
-    repuestos: (repuestos ?? []) as unknown as RepuestoDetalleOrden[],
-    mano_obra: manoObraConAyudante as unknown as ManoObraDetalleOrden[],
+    repuestos,
+    mano_obra: manoObra,
   };
 }
 
@@ -234,6 +273,18 @@ export async function agregarRepuestoAOrden(raw: unknown): Promise<ActionResult>
   const { orden_id, repuesto_id, cantidad } = parsed.data;
   const supabase = await db();
 
+  // 0. Idempotencia: si la fila ya existe (reintento con la misma clave del
+  //    cliente), no duplicar. Cubre doble-tap, Enter y replays offline.
+  const filaId = parsed.data.id ?? null;
+  if (filaId) {
+    const { data: existente } = await supabase
+      .from("orden_detalle_repuestos")
+      .select("id")
+      .eq("id", filaId)
+      .maybeSingle();
+    if (existente) return { ok: true, data: existente };
+  }
+
   // 1. Obtener datos actuales del repuesto para validar stock y tomar snapshot
   const { data: repuesto, error: repError } = await supabase
     .from("repuestos")
@@ -260,6 +311,7 @@ export async function agregarRepuestoAOrden(raw: unknown): Promise<ActionResult>
   const { data: detalle, error: insError } = await supabase
     .from("orden_detalle_repuestos")
     .insert({
+      ...(filaId ? { id: filaId } : {}),
       orden_id,
       repuesto_id,
       cantidad,
@@ -271,6 +323,11 @@ export async function agregarRepuestoAOrden(raw: unknown): Promise<ActionResult>
     .single();
 
   if (insError) {
+    // 23505 = la fila ya existe (carrera entre dos envíos con la misma clave):
+    // tratar como éxito idempotente en vez de duplicar.
+    if ((insError as { code?: string }).code === "23505" && filaId) {
+      return { ok: true };
+    }
     return { ok: false, error: friendlyDbError("agregar el repuesto a la orden") };
   }
 
@@ -359,6 +416,18 @@ export async function agregarManoObraAOrden(raw: unknown): Promise<ActionResult>
   const { orden_id, empleado_id, descripcion, monto, moneda_id } = parsed.data;
   const supabase = await db();
 
+  // 0. Idempotencia: si la fila ya existe (reintento con la misma clave del
+  //    cliente), no duplicar. Cubre doble-tap, Enter y replays offline.
+  const filaId = parsed.data.id ?? null;
+  if (filaId) {
+    const { data: existente } = await supabase
+      .from("orden_detalle_mano_obra")
+      .select("id")
+      .eq("id", filaId)
+      .maybeSingle();
+    if (existente) return { ok: true, data: existente };
+  }
+
   // Validar que la orden esté en estado modificable
   const { data: orden } = await supabase
     .from("ordenes_servicio")
@@ -402,6 +471,7 @@ export async function agregarManoObraAOrden(raw: unknown): Promise<ActionResult>
   const { data: detalle, error } = await supabase
     .from("orden_detalle_mano_obra")
     .insert({
+      ...(filaId ? { id: filaId } : {}),
       orden_id,
       empleado_id,
       descripcion,
@@ -416,6 +486,11 @@ export async function agregarManoObraAOrden(raw: unknown): Promise<ActionResult>
     .single();
 
   if (error) {
+    // 23505 = la fila ya existe (carrera entre dos envíos con la misma clave):
+    // tratar como éxito idempotente en vez de duplicar.
+    if ((error as { code?: string }).code === "23505" && filaId) {
+      return { ok: true };
+    }
     return { ok: false, error: friendlyDbError("agregar la mano de obra a la orden") };
   }
 

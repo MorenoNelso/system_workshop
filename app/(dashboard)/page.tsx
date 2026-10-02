@@ -308,45 +308,91 @@ export default async function DashboardPage() {
         <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-sm">
           <div className="p-5">
             <h2 className="text-sm font-semibold text-zinc-900">
-              Mi producción
+              Mi producción — este mes
             </h2>
             <p className="mt-0.5 text-xs text-zinc-500">
-              Tu trabajo y comisiones acumuladas
+              Comisiones del mes menos tus deducciones. Revisa el detalle para
+              reclamar al dueño si ves algo que no usaste.
             </p>
 
             {miProduccion ? (
-              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                <div className="rounded-xl bg-zinc-50 p-4">
-                  <p className="text-xs text-zinc-500">Órdenes asignadas</p>
-                  <p className="mt-1 text-2xl font-black tabular-nums text-zinc-900">
-                    {miProduccion.produccion.ordenesAsignadas}
-                  </p>
+              <>
+                <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+                  <div className="rounded-xl bg-zinc-50 p-4">
+                    <p className="text-xs text-zinc-500">Órdenes activas asignadas</p>
+                    <p className="mt-1 text-2xl font-black tabular-nums text-zinc-900">
+                      {miProduccion.produccion.ordenesAsignadas}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-zinc-400">Sin entregar</p>
+                  </div>
+                  <div className="rounded-xl bg-zinc-50 p-4">
+                    <p className="text-xs text-zinc-500">Servicios (mes)</p>
+                    <p className="mt-1 text-2xl font-black tabular-nums text-zinc-900">
+                      {miProduccion.produccion.cantidadServicios}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-zinc-50 p-4">
+                    <p className="text-xs text-zinc-500">Mano de obra (mes)</p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-zinc-900">
+                      {fmt(
+                        miProduccion.produccion.totalManoObra,
+                        miProduccion.moneda.simbolo,
+                      )}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-emerald-50 p-4">
+                    <p className="text-xs text-emerald-600">Mis comisiones (mes)</p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700">
+                      {fmt(
+                        miProduccion.produccion.totalComision,
+                        miProduccion.moneda.simbolo,
+                      )}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-amber-50 p-4">
+                    <p className="text-xs text-amber-600">Deducciones (mes)</p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-amber-700">
+                      {fmt(miProduccion.deducciones.total, miProduccion.moneda.simbolo)}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-green-50 p-4">
+                    <p className="text-xs text-green-600">Ganancia neta (mes)</p>
+                    <p className="mt-1 text-xl font-bold tabular-nums text-green-800">
+                      {fmt(miProduccion.gananciaNeta, miProduccion.moneda.simbolo)}
+                    </p>
+                  </div>
                 </div>
-                <div className="rounded-xl bg-zinc-50 p-4">
-                  <p className="text-xs text-zinc-500">Servicios</p>
-                  <p className="mt-1 text-2xl font-black tabular-nums text-zinc-900">
-                    {miProduccion.produccion.cantidadServicios}
+
+                <div className="mt-4 overflow-hidden rounded-xl border border-zinc-200">
+                  <p className="bg-zinc-50 px-4 py-2 text-xs font-medium uppercase tracking-wide text-zinc-500">
+                    Detalle de deducciones del mes
                   </p>
+                  {miProduccion.deducciones.items.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-zinc-500">
+                      Sin deducciones este mes.
+                    </p>
+                  ) : (
+                    <ul className="divide-y divide-zinc-100">
+                      {miProduccion.deducciones.items.map((d) => (
+                        <li
+                          key={d.id}
+                          className="flex items-center justify-between gap-3 px-4 py-2.5 text-sm"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate font-medium text-zinc-900">
+                              {d.descripcion}
+                            </p>
+                            <p className="text-xs text-zinc-500">{d.fecha}</p>
+                          </div>
+                          <p className="shrink-0 font-bold tabular-nums text-amber-700">
+                            −{fmt(d.convertido, miProduccion.moneda.simbolo)}
+                          </p>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </div>
-                <div className="rounded-xl bg-zinc-50 p-4">
-                  <p className="text-xs text-zinc-500">Mano de obra</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums text-zinc-900">
-                    {fmt(
-                      miProduccion.produccion.totalManoObra,
-                      miProduccion.moneda.simbolo,
-                    )}
-                  </p>
-                </div>
-                <div className="rounded-xl bg-emerald-50 p-4">
-                  <p className="text-xs text-emerald-600">Mis comisiones</p>
-                  <p className="mt-1 text-xl font-bold tabular-nums text-emerald-700">
-                    {fmt(
-                      miProduccion.produccion.totalComision,
-                      miProduccion.moneda.simbolo,
-                    )}
-                  </p>
-                </div>
-              </div>
+              </>
             ) : (
               <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
                 Tu usuario no está vinculado a un empleado. Pide al administrador

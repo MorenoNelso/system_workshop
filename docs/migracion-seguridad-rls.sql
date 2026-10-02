@@ -293,7 +293,7 @@ BEGIN
   INSERT INTO public.logs_auditoria (tabla_afectada, accion, registro_id, datos_nuevos, usuario_id)
   VALUES (
     'facturas',
-    TG_OP,
+    lower(TG_OP),
     COALESCE(NEW.id, OLD.id),
     CASE
       WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD)
@@ -321,7 +321,7 @@ BEGIN
   INSERT INTO public.logs_auditoria (tabla_afectada, accion, registro_id, datos_nuevos, usuario_id)
   VALUES (
     'pagos',
-    TG_OP,
+    lower(TG_OP),
     COALESCE(NEW.id, OLD.id),
     CASE
       WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD)

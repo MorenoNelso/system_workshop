@@ -609,6 +609,7 @@ export interface Database {
         Row: Row<{
           usuario_id: string | null;
           tabla_afectada: string;
+          registro_id: string;
           accion: string;
           datos_anteriores: Record<string, unknown> | null;
           datos_nuevos: Record<string, unknown> | null;
@@ -617,6 +618,7 @@ export interface Database {
         Insert: Insert<{
           usuario_id?: string | null;
           tabla_afectada: string;
+          registro_id: string;
           accion: string;
           datos_anteriores?: Record<string, unknown> | null;
           datos_nuevos?: Record<string, unknown> | null;
@@ -625,6 +627,7 @@ export interface Database {
         Update: Update<{
           usuario_id?: string | null;
           tabla_afectada?: string;
+          registro_id?: string;
           accion?: string;
           datos_anteriores?: Record<string, unknown> | null;
           datos_nuevos?: Record<string, unknown> | null;
@@ -650,6 +653,10 @@ export interface Database {
       cleanup_rate_limits: {
         Args: Record<string, never>;
         Returns: void;
+      };
+      anular_factura_atomica: {
+        Args: { p_factura_id: string; p_motivo?: string | null };
+        Returns: { ok: boolean; pago_reversado: boolean };
       };
     };
     Enums: Record<string, never>;

@@ -58,6 +58,8 @@ export interface CrudConfig {
   hideCreate?: boolean;
   /** Ocultar columna de acciones de eliminación. */
   hideDelete?: boolean;
+  /** Ocultar botón de editar (para páginas de solo lectura por rol). */
+  hideEdit?: boolean;
   /** Acciones extra por fila (ej. botón "+ Entrada"). */
   rowActions?: CrudRowAction[];
   /** Campos usados en la búsqueda por texto (si se define, aparece un buscador). */

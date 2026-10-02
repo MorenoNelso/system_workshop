@@ -49,6 +49,21 @@ export async function listEmpleados() {
   return data;
 }
 
+/**
+ * Vista restringida para colaborador: solo campos operativos (sin salario,
+ * documento, vinculación ni moneda). RLS no filtra columnas, así que la
+ * restricción se hace aquí en el servidor.
+ */
+export async function listEmpleadosPublicos() {
+  const supabase = await db();
+  const { data, error } = await supabase
+    .from("empleados")
+    .select("id, nombre, telefono, porcentaje_comision, activo, usuario:usuarios(email, rol)")
+    .order("nombre");
+  if (error) return [];
+  return data;
+}
+
 export async function listMecanicosActivos() {
   const supabase = await db();
   const { data, error } = await supabase

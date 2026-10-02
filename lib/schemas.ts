@@ -173,6 +173,9 @@ export const ordenServicioSchema = z.object({
 });
 
 export const ordenDetalleRepuestoSchema = z.object({
+  // id opcional generado en el cliente (crypto.randomUUID al abrir el modal):
+  // clave de idempotencia contra doble-tap/Enter y reintentos offline.
+  id: optionalId,
   orden_id: id,
   repuesto_id: id,
   cantidad: z.coerce
@@ -182,6 +185,9 @@ export const ordenDetalleRepuestoSchema = z.object({
 });
 
 export const ordenDetalleManoObraSchema = z.object({
+  // id opcional generado en el cliente (crypto.randomUUID al abrir el modal):
+  // clave de idempotencia contra doble-tap/Enter y reintentos offline.
+  id: optionalId,
   orden_id: id,
   empleado_id: id,
   descripcion: text(200),

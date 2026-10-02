@@ -1,9 +1,3 @@
--- ==========================================================================
--- FIX: Triggers de auditoría usan columna incorrecta
--- La columna se llama `tabla_afectada`, no `tabla`.
--- ==========================================================================
-
--- Fix fn_audit_facturas
 CREATE OR REPLACE FUNCTION public.fn_audit_facturas()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -13,7 +7,7 @@ BEGIN
   INSERT INTO public.logs_auditoria (tabla_afectada, accion, registro_id, datos_nuevos, usuario_id)
   VALUES (
     'facturas',
-    TG_OP,
+    lower(TG_OP),
     COALESCE(NEW.id, OLD.id),
     CASE
       WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD)
@@ -25,7 +19,6 @@ BEGIN
 END;
 $$;
 
--- Fix fn_audit_pagos
 CREATE OR REPLACE FUNCTION public.fn_audit_pagos()
 RETURNS trigger
 LANGUAGE plpgsql
@@ -35,7 +28,7 @@ BEGIN
   INSERT INTO public.logs_auditoria (tabla_afectada, accion, registro_id, datos_nuevos, usuario_id)
   VALUES (
     'pagos',
-    TG_OP,
+    lower(TG_OP),
     COALESCE(NEW.id, OLD.id),
     CASE
       WHEN TG_OP = 'DELETE' THEN to_jsonb(OLD)
@@ -50,6 +43,8 @@ $$;
 -- ==========================================================================
 -- FIX: Vista empleados_public con SECURITY DEFINER → eliminar
 -- El RLS ya protege la tabla. La vista no necesita SECURITY DEFINER.
+-- (Restaurado: este bloque venía del commit de seguridad; no se usa en
+-- código pero se conserva por integridad del hardening.)
 -- ==========================================================================
 
 DROP VIEW IF EXISTS public.empleados_public;

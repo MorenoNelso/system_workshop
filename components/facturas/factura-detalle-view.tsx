@@ -21,6 +21,7 @@ interface Props {
   equivalencias: { moneda: MonedaRef; total: number | null }[];
   nombreTaller?: string;
   logoWatermarkUrl?: string | null;
+  esAdmin?: boolean;
 }
 
 function EstadoBadge({ estado }: { estado: string }) {
@@ -58,6 +59,7 @@ export function FacturaDetalleView({
   equivalencias,
   nombreTaller = "Pacho Motos",
   logoWatermarkUrl = null,
+  esAdmin = false,
 }: Props) {
   const router = useRouter();
   const [guardando, setGuardando] = useState(false);
@@ -69,6 +71,11 @@ export function FacturaDetalleView({
   const [montoPago, setMontoPago] = useState<string>(
     Number(factura.total).toFixed(2),
   );
+
+  const [modalAnular, setModalAnular] = useState(false);
+  const [motivoAnular, setMotivoAnular] = useState("");
+  const esPagada = factura.estado_pago === "pagada";
+  const monedaSimbolo = factura.moneda?.simbolo || "$";
 
   const equivalenciaPorMoneda: Record<string, number | null> = {
     [factura.moneda_id]: Number(factura.total),
@@ -99,7 +106,9 @@ export function FacturaDetalleView({
     setGuardando(false);
 
     if ("offline" in res && res.offline) {
-      setError("Sin conexión. Se guardará cuando vuelva internet.");
+      // Se cierra el modal para que no se reintente y duplique el pago al sincronizar
+      setModalPago(false);
+      setError("Sin conexión. El pago quedó en cola y se registrará cuando vuelva internet.");
       return;
     }
     if (!res.ok) {
@@ -111,14 +120,32 @@ export function FacturaDetalleView({
     router.refresh();
   }
 
-  async function handleAnular() {
-    if (!confirm("¿Anular esta factura? No podrá cobrarse después.")) return;
+  async function handleAnular(e: React.FormEvent) {
+    e.preventDefault();
+    if (guardando) return;
+    const motivo = motivoAnular.trim();
+    if (esPagada && !motivo) {
+      setError("Para anular una factura pagada indica el motivo de la anulación.");
+      return;
+    }
+    if (
+      !confirm(
+        esPagada
+          ? `¿Anular la factura pagada por ${monedaSimbolo} ${Number(factura.total).toFixed(2)}? Se reversará el pago y quedará registrada como anulada. El efectivo debe devolverse a mano.`
+          : "¿Anular esta factura? No podrá cobrarse después.",
+      )
+    )
+      return;
+    setGuardando(true);
     setError(null);
-    const res = await anularFactura(factura.id);
+    const res = await anularFactura(factura.id, esPagada ? motivo : undefined);
+    setGuardando(false);
     if (!res.ok) {
       setError(res.error);
       return;
     }
+    setModalAnular(false);
+    setMotivoAnular("");
     router.refresh();
   }
 
@@ -131,7 +158,6 @@ export function FacturaDetalleView({
     (acc: number, item: ManoObraDetalle) => acc + Number(item.monto),
     0,
   );
-  const monedaSimbolo = factura.moneda?.simbolo || "$";
 
   return (
     <div className="relative flex flex-col gap-6">
@@ -180,27 +206,35 @@ export function FacturaDetalleView({
           </div>
         </div>
 
-        {/* Acciones por estado */}
-        {factura.estado_pago === "pendiente" && (
+        {/* Acciones por estado (anular: solo admin, el servidor también lo exige) */}
+        {(factura.estado_pago === "pendiente" || factura.estado_pago === "pagada") && (
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAnular}
-              disabled={guardando}
-              className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:opacity-60"
-            >
-              Anular
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setError(null);
-                setModalPago(true);
-              }}
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98]"
-            >
-              Registrar Pago
-            </button>
+            {esAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setMotivoAnular("");
+                  setModalAnular(true);
+                }}
+                disabled={guardando}
+                className="rounded-lg border border-red-200 bg-white px-4 py-2 text-sm font-medium text-red-600 transition hover:bg-red-50 active:scale-[0.98] disabled:opacity-60"
+              >
+                Anular
+              </button>
+            )}
+            {factura.estado_pago === "pendiente" && (
+              <button
+                type="button"
+                onClick={() => {
+                  setError(null);
+                  setModalPago(true);
+                }}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98]"
+              >
+                Registrar Pago
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -608,6 +642,59 @@ export function FacturaDetalleView({
                   className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98] disabled:opacity-60"
                 >
                   {guardando ? "Registrando..." : "Confirmar pago completo"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Anular factura */}
+      {modalAnular && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-zinc-900/40 p-4">
+          <div className="my-auto max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-zinc-200 bg-white shadow-xl">
+            <div className="px-6 pt-5 pb-3">
+              <h3 className="text-base font-semibold text-zinc-900">
+                Anular factura #{String(factura.numero_consecutivo).padStart(6, "0")}
+              </h3>
+              <p className="text-xs text-zinc-500">
+                {esPagada
+                  ? "Está pagada: se reversará el pago y quedará registrada como anulada. El efectivo debe devolverse a mano."
+                  : "No podrá cobrarse después."}
+              </p>
+            </div>
+
+            <form onSubmit={handleAnular} className="space-y-4 px-6 py-4">
+              {esPagada && (
+                <div>
+                  <label className="text-xs font-medium text-zinc-700">
+                    Motivo de la anulación <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={3}
+                    placeholder="Ej: error de digitación en el monto de mano de obra"
+                    value={motivoAnular}
+                    onChange={(e) => setMotivoAnular(e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                  />
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-3 border-t border-zinc-200 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setModalAnular(false)}
+                  className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 active:scale-[0.98]"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={guardando || (esPagada && !motivoAnular.trim())}
+                  className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-60"
+                >
+                  {guardando ? "Anulando..." : "Sí, anular"}
                 </button>
               </div>
             </form>

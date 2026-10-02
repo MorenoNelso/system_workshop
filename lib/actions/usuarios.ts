@@ -97,7 +97,36 @@ export async function crearUsuario(
     return { message: "No se pudo guardar el usuario. Intenta de nuevo." };
   }
 
-  return { ok: true, message: `Usuario ${parsed.data.nombre} creado correctamente.` };
+  // 3. Crear automáticamente su registro de empleado para que pueda
+  //    trabajar como mecánico desde el día uno (sin SQL manual):
+  //    - colaborador → 30% (su ganancia por trabajo)
+  //    - administrador/dueño → 100% (todo lo que cobra queda en el taller;
+  //      la lógica de `duenoId` en ganancias ya excluye su comisión del costo)
+  //    NOTA: supabase-js NO lanza excepción en insert: retorna { error }.
+  //    Por eso se revisa `error` explícitamente en vez de try/catch.
+  let advertenciaEmpleado: string | undefined;
+  if (authUser.user?.id) {
+    const porcentajeInicial = parsed.data.rol === "administrador" ? 100 : 30;
+    const { error: empError } = await admin.from("empleados").insert({
+      usuario_id: authUser.user.id,
+      nombre: parsed.data.nombre,
+      telefono: null,
+      porcentaje_comision: porcentajeInicial,
+      activo: true,
+    });
+    if (empError) {
+      // No se revierte el usuario: se puede vincular el empleado
+      // manualmente después. Pero se avisa para que no pase desapercibido.
+      console.error("No se pudo crear el empleado automático:", empError.message);
+      advertenciaEmpleado =
+        " El empleado no se creó automáticamente; vincúlalo manualmente en Empleados.";
+    }
+  }
+
+  return {
+    ok: true,
+    message: `Usuario ${parsed.data.nombre} creado correctamente.${advertenciaEmpleado ?? ""}`,
+  };
 }
 
 /** Lista los usuarios del sistema (solo admin). */

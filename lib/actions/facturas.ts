@@ -219,65 +219,116 @@ export async function getFacturaById(id: string): Promise<FacturaDetail | null> 
 
   const f = factura as unknown as FacturaDetail;
 
-  let ordenRepuestos: RepuestoDetalle[] = [];
-  let ordenManoObra: ManoObraDetalle[] = [];
+  // Lectura plana + resolución por lotes (NO joins embebidos): los joins
+  // fallan en silencio (data null) si falta un FK o el RLS de la tabla
+  // referenciada bloquea, dejando tablas vacías aunque haya filas.
+  type RepFlat = {
+    id: string; repuesto_id: string; cantidad: number;
+    precio_unitario_aplicado: number; precio_costo_aplicado: number | null;
+    moneda_id: string;
+  };
+  type MoFlat = {
+    id: string; empleado_id: string | null; descripcion: string; monto: number;
+    moneda_id: string; porcentaje_comision_aplicado: number | null;
+    comision_calculada: number | null; ayudante_id: string | null;
+    ayudante_monto: number | null;
+  };
+
+  let repOrdenRows: RepFlat[] = [];
+  let moOrdenRows: MoFlat[] = [];
 
   if (f.orden_id) {
-    const [{ data: repOrden }, { data: moOrden }] = await Promise.all([
+    const [{ data: repOrden, error: repOrdErr }, { data: moOrden, error: moOrdErr }] = await Promise.all([
       supabase
         .from("orden_detalle_repuestos")
-        .select("*, repuesto:repuestos(nombre, sku, calidad, medida, compatible_con), moneda:monedas(codigo, simbolo)")
+        .select("id, repuesto_id, cantidad, precio_unitario_aplicado, precio_costo_aplicado, moneda_id")
         .eq("orden_id", f.orden_id),
       supabase
         .from("orden_detalle_mano_obra")
-        .select("*, empleado:empleados(nombre, porcentaje_comision), moneda:monedas(codigo, simbolo)")
+        .select("id, empleado_id, descripcion, monto, moneda_id, porcentaje_comision_aplicado, comision_calculada, ayudante_id, ayudante_monto")
         .eq("orden_id", f.orden_id),
     ]);
-    ordenRepuestos = (repOrden ?? []) as unknown as RepuestoDetalle[];
-    ordenManoObra = (moOrden ?? []) as unknown as ManoObraDetalle[];
+    if (repOrdErr) console.error("[getFacturaById] orden repuestos:", repOrdErr.message);
+    if (moOrdErr) console.error("[getFacturaById] orden mano_obra:", moOrdErr.message);
+    repOrdenRows = (repOrden ?? []) as unknown as RepFlat[];
+    moOrdenRows = (moOrden ?? []) as unknown as MoFlat[];
   }
 
-  const [{ data: repDirecta }, { data: servDirecta }] = await Promise.all([
+  const [{ data: repDirecta, error: repDirErr }, { data: servDirecta, error: servDirErr }] = await Promise.all([
     supabase
       .from("factura_detalle_repuestos")
-      .select("*, repuesto:repuestos(nombre, sku, calidad, medida, compatible_con), moneda:monedas(codigo, simbolo)")
+      .select("id, repuesto_id, cantidad, precio_unitario_aplicado, precio_costo_aplicado, moneda_id")
       .eq("factura_id", id),
     supabase
       .from("factura_detalle_servicios")
-      .select("*, empleado:empleados(nombre, porcentaje_comision), moneda:monedas(codigo, simbolo)")
+      .select("id, empleado_id, descripcion, monto, moneda_id, porcentaje_comision_aplicado, comision_calculada")
       .eq("factura_id", id),
   ]);
+  if (repDirErr) console.error("[getFacturaById] directa repuestos:", repDirErr.message);
+  if (servDirErr) console.error("[getFacturaById] directa servicios:", servDirErr.message);
 
-  // Resolver nombres de ayudantes
-  const allManoObra = [...ordenManoObra, ...((servDirecta ?? []) as unknown as ManoObraDetalle[])];
-  const ayudanteIds = [...new Set(
-    allManoObra
-      .map((m) => m.ayudante_id)
-      .filter((aid): aid is string => !!aid),
-  )];
-  const ayudantesMap: Record<string, string> = {};
-  if (ayudanteIds.length > 0) {
-    const { data: ayudantes } = await supabase
-      .from("empleados")
-      .select("id, nombre")
-      .in("id", ayudanteIds);
-    for (const a of ayudantes ?? []) {
-      ayudantesMap[a.id] = a.nombre;
-    }
+  const allRep = [...repOrdenRows, ...((repDirecta ?? []) as unknown as RepFlat[])];
+  const allMoRaw = [...moOrdenRows, ...((servDirecta ?? []) as unknown as MoFlat[])];
+
+  const repIds = [...new Set(allRep.map((r) => r.repuesto_id))];
+  const empIds = [...new Set([...allMoRaw.map((m) => m.empleado_id), ...allMoRaw.map((m) => m.ayudante_id)].filter((v): v is string => !!v))];
+  const monIds = [...new Set([...allRep.map((r) => r.moneda_id), ...allMoRaw.map((m) => m.moneda_id)])];
+
+  const [{ data: reps }, { data: emps }, { data: mons }] = await Promise.all([
+    repIds.length > 0
+      ? supabase.from("repuestos").select("id, nombre, sku, calidad, medida, compatible_con").in("id", repIds)
+      : Promise.resolve({ data: [] as { id: string; nombre: string; sku: string | null; calidad: string | null; medida: string | null; compatible_con: string | null }[] }),
+    empIds.length > 0
+      ? supabase.from("empleados").select("id, nombre").in("id", empIds)
+      : Promise.resolve({ data: [] as { id: string; nombre: string }[] }),
+    monIds.length > 0
+      ? supabase.from("monedas").select("id, codigo, simbolo").in("id", monIds)
+      : Promise.resolve({ data: [] as { id: string; codigo: string; simbolo: string }[] }),
+  ]);
+  const repMap: Record<string, { nombre: string; sku: string | null; calidad: string | null; medida: string | null; compatible_con: string | null }> = {};
+  for (const r of reps ?? []) {
+    repMap[r.id] = { nombre: r.nombre, sku: r.sku, calidad: r.calidad, medida: r.medida, compatible_con: r.compatible_con };
   }
+  const empMap: Record<string, string> = {};
+  for (const e of emps ?? []) empMap[e.id] = e.nombre;
+  const monMap: Record<string, { codigo: string; simbolo: string }> = {};
+  for (const m of mons ?? []) monMap[m.id] = { codigo: m.codigo, simbolo: m.simbolo };
 
-  const resolveManoObra = (items: ManoObraDetalle[]) =>
-    items.map((m) => ({
-      ...m,
-      ayudante: m.ayudante_id
-        ? { nombre: ayudantesMap[m.ayudante_id] ?? null }
-        : null,
-    }));
+  const repuestos: RepuestoDetalle[] = allRep.map((r) => ({
+    id: r.id,
+    cantidad: r.cantidad,
+    precio_unitario_aplicado: r.precio_unitario_aplicado,
+    precio_costo_aplicado: r.precio_costo_aplicado,
+    moneda: monMap[r.moneda_id] ? { codigo: monMap[r.moneda_id].codigo, simbolo: monMap[r.moneda_id].simbolo } : null,
+    repuesto: repMap[r.repuesto_id]
+      ? {
+          nombre: repMap[r.repuesto_id].nombre,
+          sku: repMap[r.repuesto_id].sku,
+          calidad: repMap[r.repuesto_id].calidad,
+          medida: repMap[r.repuesto_id].medida,
+          compatible_con: repMap[r.repuesto_id].compatible_con,
+        }
+      : null,
+  }));
+
+  // Resolver nombres de ayudantes (no se puede hacer JOIN a la misma tabla dos veces)
+  const mano_obra: ManoObraDetalle[] = allMoRaw.map((m) => ({
+    id: m.id,
+    descripcion: m.descripcion,
+    monto: m.monto,
+    porcentaje_comision_aplicado: m.porcentaje_comision_aplicado,
+    comision_calculada: m.comision_calculada,
+    ayudante_id: m.ayudante_id,
+    ayudante_monto: m.ayudante_monto,
+    moneda: monMap[m.moneda_id] ? { codigo: monMap[m.moneda_id].codigo, simbolo: monMap[m.moneda_id].simbolo } : null,
+    empleado: m.empleado_id ? { nombre: empMap[m.empleado_id] ?? null } : null,
+    ayudante: m.ayudante_id ? { nombre: empMap[m.ayudante_id] ?? null } : null,
+  }));
 
   return {
     ...f,
-    repuestos: [...ordenRepuestos, ...((repDirecta ?? []) as unknown as RepuestoDetalle[])],
-    mano_obra: resolveManoObra([...ordenManoObra, ...((servDirecta ?? []) as unknown as ManoObraDetalle[])]),
+    repuestos,
+    mano_obra,
   };
 }
 
@@ -290,7 +341,7 @@ export async function getFacturaById(id: string): Promise<FacturaDetail | null> 
  * - `numero_consecutivo` lo genera la BD (serial).
  */
 export async function createFactura(raw: unknown): Promise<ActionResult> {
-  const user = await requireRole("administrador");
+  const user = await requireRole("administrador", "colaborador");
 
   if (!(await rateLimitFactura(user.id))) {
     return { ok: false, error: "Demasiadas facturas creadas en poco tiempo. Espera unos minutos e intenta de nuevo." };
@@ -422,7 +473,7 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
  * - Guarda total y tasa_aplicada como SNAPSHOT.
  */
 export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> {
-  const user = await requireRole("administrador");
+  const user = await requireRole("administrador", "colaborador");
 
   if (!(await rateLimitFactura(user.id))) {
     return { ok: false, error: "Demasiadas facturas creadas en poco tiempo. Espera unos minutos e intenta de nuevo." };
@@ -517,9 +568,11 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
   }
 
   for (const s of servicios) {
-    const porcentajeComision = s.empleado_id
+    // El % del formulario manda (modo "%" del selector); si viene vacío se
+    // hereda el del empleado, igual que en agregarManoObraAOrden.
+    const porcentajeComision = s.porcentaje_comision_aplicado ?? (s.empleado_id
       ? (empleadosMap.get(s.empleado_id)?.porcentaje_comision ?? null)
-      : null;
+      : null);
 
     // Si se proporciona monto_a_pagar, usarlo directamente; si no, calcular desde %
     const montoAPagar = s.monto_a_pagar ?? null;
@@ -635,7 +688,7 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
  * pagado, convertido a la moneda de la factura, cubra el total congelado.
  */
 export async function registrarPago(raw: unknown): Promise<ActionResult> {
-  const user = await requireRole("administrador");
+  const user = await requireRole("administrador", "colaborador");
 
   if (!(await rateLimitPago(user.id))) {
     return { ok: false, error: "Demasiados pagos registrados en poco tiempo. Espera unos minutos e intenta de nuevo." };
@@ -707,73 +760,47 @@ export async function registrarPago(raw: unknown): Promise<ActionResult> {
   return { ok: true };
 }
 
-/** Anula una factura pendiente. Solo `administrador` puede anular. */
-export async function anularFactura(id: string): Promise<ActionResult> {
+/**
+ * Anula una factura pendiente o pagada. Solo `administrador` puede anular.
+ * - Pendiente: anula directo (con confirmación en UI).
+ * - Pagada: exige `motivo` obligatorio, reversa los pagos asociados y
+ *   devuelve stock solo si es venta directa. La factura queda como
+ *   `anulada` (no se borra: queda el rastro en auditoría). El dinero en
+ *   efectivo se devuelve a mano en el taller.
+ *
+ * Todo ocurre dentro del RPC transaccional `anular_factura_atomica`
+ * (ver supabase/migrations/20260929_colaborador_facturacion.sql): si algo
+ * falla, NADA se aplica (rollback automático). Por eso aquí no hay
+ * try/catch sobre el insert de auditoría: va dentro de la transacción.
+ */
+export async function anularFactura(id: string, motivo?: string): Promise<ActionResult> {
   const user = await requireRole("administrador");
 
   if (!(await rateLimitAdmin(user.id))) {
     return { ok: false, error: "Demasiadas peticiones. Espera unos minutos e intenta de nuevo." };
   }
 
+  const motivoLimpio = (motivo ?? "").trim();
+
   const supabase = await db();
-
-  const { data: factura, error } = await supabase
-    .from("facturas")
-    .select("id, estado_pago, usuario_id")
-    .eq("id", id)
-    .single();
-  if (error || !factura) {
-    return { ok: false, error: "La factura no existe." };
-  }
-  // Solo admin puede anular facturas (RLS también lo exige).
-  if (factura.estado_pago === "anulada") {
-    return { ok: false, error: "La factura ya está anulada." };
-  }
-  if (factura.estado_pago === "pagada") {
-    return { ok: false, error: "No se puede anular una factura pagada." };
-  }
-
-  // Devolver stock de repuestos de VENTA DIRECTA (si los hay).
-  // Las facturas desde orden no descuentan stock aquí (ya se descontó al
-  // agregar repuestos a la orden), así que `factura_detalle_repuestos`
-  // estará vacío en ese caso y no habrá doble devolución.
-  const { data: repuestos, error: repErr } = await supabase
-    .from("factura_detalle_repuestos")
-    .select("repuesto_id, cantidad")
-    .eq("factura_id", id);
-
-  if (repErr) {
-    return {
-      ok: false,
-      error: "No se pudo verificar el inventario de la factura. Intenta de nuevo.",
-    };
-  }
-
-  if (repuestos && repuestos.length > 0) {
-    const movimientos = repuestos.map((r) => ({
-      repuesto_id: r.repuesto_id,
-      tipo: "entrada" as const,
-      cantidad: r.cantidad,
-      motivo: "Devolución por anulación de factura",
-      usuario_id: user.id,
-    }));
-    const { error: movErr } = await supabase
-      .from("movimientos_inventario")
-      .insert(movimientos);
-    if (movErr) {
-      return {
-        ok: false,
-        error:
-          "No se pudo devolver el stock al inventario. La factura no fue anulada; intenta de nuevo.",
-      };
+  const { error: rpcErr } = await supabase.rpc("anular_factura_atomica", {
+    p_factura_id: id,
+    p_motivo: motivoLimpio || null,
+  });
+  if (rpcErr) {
+    const msg = rpcErr.message ?? "";
+    if (msg.includes("ya está anulada")) {
+      return { ok: false, error: "La factura ya está anulada." };
     }
-  }
-
-  const { error: upErr } = await supabase
-    .from("facturas")
-    .update({ estado_pago: "anulada" })
-    .eq("id", id);
-  if (upErr) {
+    if (msg.includes("no existe")) {
+      return { ok: false, error: "La factura no existe." };
+    }
+    if (msg.includes("indica el motivo")) {
+      return { ok: false, error: "Para anular una factura pagada indica el motivo de la anulación." };
+    }
+    if (msg.includes("Solo el administrador")) {
+      return { ok: false, error: "No tienes permiso para anular facturas." };
+    }
     return { ok: false, error: friendlyDbError("anular la factura") };
   }
 

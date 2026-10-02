@@ -26,7 +26,14 @@ export function RepuestosClient({
   monedas,
   userRole,
 }: Props) {
-  const perms = crudRoleOverrides(userRole);
+  // Inventario de solo lectura para colaborador: el servidor (actions + RLS)
+  // bloquea crear/editar/eliminar y registrar movimientos; se ocultan los
+  // botones para no mostrar acciones que siempre fallarían.
+  const isAdmin = userRole === "administrador";
+  const perms = crudRoleOverrides(userRole, {
+    allowCreateForColaborador: false,
+    allowEditForColaborador: false,
+  });
   const [entradaRepuesto, setEntradaRepuesto] = useState<Record<string, unknown> | null>(null);
   const [cantidad, setCantidad] = useState("1");
   const [motivo, setMotivo] = useState("");
@@ -39,7 +46,9 @@ export function RepuestosClient({
     () => ({
       title: "Repuestos",
       singular: "repuesto",
-      description: "Inventario de repuestos. Usa '+ Entrada' para registrar stock que llega.",
+      description: isAdmin
+        ? "Inventario de repuestos. Usa '+ Entrada' para registrar stock que llega."
+        : "Inventario de repuestos (solo lectura).",
       fields: [
         { name: "nombre", label: "Nombre", type: "text", required: true },
         {
@@ -142,21 +151,23 @@ export function RepuestosClient({
       update: { label: "editar", run: (id, r) => updateRepuesto(id, r) },
       delete: { label: "eliminar", run: (id) => deleteRepuesto(id) },
       ...perms,
-      rowActions: [
-        {
-          label: "+ Entrada",
-          className: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-          onClick: (row) => {
-            setEntradaRepuesto(row);
-            setCantidad("1");
-            setMotivo("");
-            setError(null);
-            setSuccess(null);
-          },
-        },
-      ],
+      rowActions: isAdmin
+        ? [
+            {
+              label: "+ Entrada",
+              className: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+              onClick: (row) => {
+                setEntradaRepuesto(row);
+                setCantidad("1");
+                setMotivo("");
+                setError(null);
+                setSuccess(null);
+              },
+            },
+          ]
+        : [],
     }),
-    [categorias, proveedores, monedas, perms],
+    [categorias, proveedores, monedas, perms, isAdmin],
   );
 
   async function guardarEntrada(e: React.FormEvent) {

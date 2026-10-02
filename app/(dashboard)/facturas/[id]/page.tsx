@@ -62,6 +62,7 @@ export default async function FacturaDetallePage(props: {
       equivalencias={equivalencias}
       nombreTaller={config.nombre_taller}
       logoWatermarkUrl={config.logo_watermark_url}
+      esAdmin={user.rol === "administrador"}
     />
   );
 }

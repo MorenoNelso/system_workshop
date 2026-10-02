@@ -62,6 +62,26 @@ export interface MiProduccion {
   cantidadServicios: number;
 }
 
+export interface DeduccionMes {
+  total: number;
+  items: Array<{
+    id: string;
+    descripcion: string;
+    costo: number;
+    moneda_id: string;
+    fecha: string;
+    convertido: number;
+  }>;
+}
+
+/** YYYY-MM-DD en hora local (evita desfase UTC de toISOString). */
+function fechaLocalISO(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 /* ------------------------------------------------------------------ */
 /* Helpers                                                             */
 /* ------------------------------------------------------------------ */
@@ -328,7 +348,15 @@ export async function getVentasPorRango(
 
 export async function getMiProduccion(
   usuarioId: string,
-): Promise<{ produccion: MiProduccion; moneda: MonedaBase } | null> {
+): Promise<{ produccion: MiProduccion; moneda: MonedaBase; deducciones: DeduccionMes; gananciaNeta: number } | null> {
+  // Seguridad: el colaborador solo puede ver su propia producción.
+  // Se ignora el parámetro y se usa el usuario de la sesión, salvo que
+  // quien llame sea administrador (p. ej. soporte).
+  const sessionUser = await getCurrentUser();
+  if (!sessionUser) return null;
+  const efectivoUsuarioId =
+    sessionUser.rol === "administrador" && usuarioId ? usuarioId : sessionUser.id;
+
   const supabase = await db();
   const monedas = await getMonedasYBase(supabase);
   const monedaBase = monedas[0];
@@ -337,31 +365,47 @@ export async function getMiProduccion(
   const { data: empleado } = await supabase
     .from("empleados")
     .select("id, nombre")
-    .eq("usuario_id", usuarioId)
+    .eq("usuario_id", efectivoUsuarioId)
     .maybeSingle();
 
   if (!empleado) return null;
 
+  // ---- 1. Órdenes asignadas (no entregadas) ----
   const { count } = await supabase
     .from("ordenes_servicio")
     .select("id", { count: "exact", head: true })
     .eq("empleado_asignado_id", empleado.id)
     .neq("estado", "entregado");
 
+  // ---- 2. Mano de obra + comisiones DEL MES (por fecha_ingreso de la orden) ----
+  // orden_detalle_mano_obra no tiene fecha propia: se usa la fecha_ingreso
+  // de la orden para que comisiones y deducciones compartan el mismo periodo.
+  const hoy = new Date();
+  const inicioMes = fechaLocalISO(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+  const finMes = fechaLocalISO(new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0));
+
   const { data: manoObra } = await supabase
     .from("orden_detalle_mano_obra")
-    .select("monto, comision_calculada, moneda_id")
+    .select("monto, comision_calculada, moneda_id, orden_id, orden:ordenes_servicio(fecha_ingreso)")
     .eq("empleado_id", empleado.id);
 
   const filas = (manoObra ?? []) as unknown as {
     monto: number;
     comision_calculada: number | null;
     moneda_id: string;
+    orden_id: string;
+    orden: { fecha_ingreso: string } | null;
   }[];
+
+  const filasMes = filas.filter((f) => {
+    const fecha = f.orden?.fecha_ingreso ? String(f.orden.fecha_ingreso).slice(0, 10) : null;
+    return fecha !== null && fecha >= inicioMes && fecha <= finMes;
+  });
 
   let totalComision = 0;
   let totalManoObra = 0;
-  for (const f of filas) {
+  let cantidadServicios = filasMes.length;
+  for (const f of filasMes) {
     const convMO = convertir(Number(f.monto), f.moneda_id, monedaBase.id, tasas);
     if (convMO !== null) totalManoObra += convMO;
     const convCom = convertir(
@@ -373,15 +417,84 @@ export async function getMiProduccion(
     if (convCom !== null) totalComision += convCom;
   }
 
+  // ---- 2b. Servicios de facturas DIRECTAS (venta rápida) del mes ----
+  // factura_detalle_servicios no tiene fecha propia: se usa fecha_emision.
+  const { data: servDirectos } = await supabase
+    .from("factura_detalle_servicios")
+    .select("monto, comision_calculada, moneda_id, factura:facturas(fecha_emision)")
+    .eq("empleado_id", empleado.id);
+
+  const directos = (servDirectos ?? []) as unknown as {
+    monto: number;
+    comision_calculada: number | null;
+    moneda_id: string;
+    factura: { fecha_emision: string } | null;
+  }[];
+
+  for (const s of directos) {
+    const fecha = s.factura?.fecha_emision ? String(s.factura.fecha_emision).slice(0, 10) : null;
+    if (fecha === null || fecha < inicioMes || fecha > finMes) continue;
+    const convMO = convertir(Number(s.monto), s.moneda_id, monedaBase.id, tasas);
+    if (convMO !== null) totalManoObra += convMO;
+    const convCom = convertir(
+      Number(s.comision_calculada ?? 0),
+      s.moneda_id,
+      monedaBase.id,
+      tasas,
+    );
+    if (convCom !== null) totalComision += convCom;
+    cantidadServicios += 1;
+  }
+
+  // ---- 3. Deducciones del mes para este empleado ----
+  const { data: deducciones } = await supabase
+    .from("deducciones_mecanico")
+    .select("id, descripcion, costo, moneda_id, fecha")
+    .eq("empleado_id", empleado.id)
+    .gte("fecha", inicioMes)
+    .lte("fecha", finMes)
+    .order("fecha", { ascending: false });
+
+  const itemsDeducciones: DeduccionMes["items"] = [];
+  let totalDeducciones = 0;
+  for (const d of deducciones ?? []) {
+    const row = d as unknown as {
+      id: string;
+      descripcion: string;
+      costo: number;
+      moneda_id: string;
+      fecha: string;
+    };
+    const costo = Number(row.costo);
+    const convertido = convertir(costo, row.moneda_id, monedaBase.id, tasas) ?? costo;
+    totalDeducciones += convertido;
+    itemsDeducciones.push({
+      id: row.id,
+      descripcion: row.descripcion,
+      costo,
+      moneda_id: row.moneda_id,
+      fecha: row.fecha,
+      convertido,
+    });
+  }
+
+  // ---- 4. Ganancia neta del mes = comisiones del mes - deducciones del mes ----
+  const gananciaNeta = totalComision - totalDeducciones;
+
   return {
     produccion: {
       empleadoNombre: empleado.nombre,
       ordenesAsignadas: count ?? 0,
       totalComision,
       totalManoObra,
-      cantidadServicios: filas.length,
+      cantidadServicios,
     },
     moneda: monedaBase,
+    deducciones: {
+      total: totalDeducciones,
+      items: itemsDeducciones,
+    },
+    gananciaNeta,
   };
 }
 
@@ -396,6 +509,8 @@ export interface GananciaVenta {
   ingreso: number;
   egreso: number;
   comisionMecanico: number;
+  /** Monto fijo pagado a ayudantes (sale del taller) */
+  ayudaMecanico: number;
   ganancia: number;
 }
 
@@ -404,6 +519,8 @@ export interface GananciaDia {
   ingreso: number;
   egreso: number;
   comisionMecanico: number;
+  /** Monto fijo pagado a ayudantes (sale del taller) */
+  ayudaMecanico: number;
   ganancia: number;
   cantidad: number;
 }
@@ -425,10 +542,12 @@ export interface GananciasResultado {
 }
 
 /**
- * Calcula ganancias por factura (ingreso − egreso − comisión mecánico).
+ * Calcula ganancias por factura (ingreso − egreso − comisión mecánico − ayuda).
  * - "hoy": detalle por factura del día actual.
  * - "diasAnteriores": solo el total por día (sin desglose por venta).
  * Todo convertido a la moneda base (COP) con tasas vigentes.
+ * La comisión del dueño no resta (queda en el taller); lo pagado a
+ * ayudantes sí resta porque sale del taller al empleado que ayudó.
  */
 export async function getGanancias(): Promise<GananciasResultado> {
   await requireRole("administrador");
@@ -483,7 +602,7 @@ export async function getGanancias(): Promise<GananciasResultado> {
     ordenIds.length > 0
       ? supabase
           .from("orden_detalle_mano_obra")
-          .select("orden_id, monto, comision_calculada, moneda_id, empleado_id")
+          .select("orden_id, monto, comision_calculada, moneda_id, empleado_id, ayudante_monto")
           .in("orden_id", ordenIds)
       : { data: [] as Record<string, unknown>[] },
     facturaIds.length > 0
@@ -513,7 +632,7 @@ export async function getGanancias(): Promise<GananciasResultado> {
     });
   }
 
-  const moByOrdenMap: Record<string, { monto: number; comision: number | null; moneda_id: string; empleado_id: string | null }[]> = {};
+  const moByOrdenMap: Record<string, { monto: number; comision: number | null; moneda_id: string; empleado_id: string | null; ayuda: number | null }[]> = {};
   for (const m of moByOrden.data ?? []) {
     const oid = m.orden_id as string;
     if (!moByOrdenMap[oid]) moByOrdenMap[oid] = [];
@@ -522,6 +641,7 @@ export async function getGanancias(): Promise<GananciasResultado> {
       comision: m.comision_calculada === null ? null : Number(m.comision_calculada),
       moneda_id: m.moneda_id as string,
       empleado_id: m.empleado_id as string | null,
+      ayuda: m.ayudante_monto === null || m.ayudante_monto === undefined ? null : Number(m.ayudante_monto),
     });
   }
 
@@ -537,7 +657,7 @@ export async function getGanancias(): Promise<GananciasResultado> {
     });
   }
 
-  const moByFacturaMap: Record<string, { monto: number; comision: number | null; moneda_id: string; empleado_id: string | null }[]> = {};
+  const moByFacturaMap: Record<string, { monto: number; comision: number | null; moneda_id: string; empleado_id: string | null; ayuda: number | null }[]> = {};
   for (const s of moByFactura.data ?? []) {
     const fid = s.factura_id as string;
     if (!moByFacturaMap[fid]) moByFacturaMap[fid] = [];
@@ -546,6 +666,8 @@ export async function getGanancias(): Promise<GananciasResultado> {
       comision: s.comision_calculada === null ? null : Number(s.comision_calculada),
       moneda_id: s.moneda_id as string,
       empleado_id: s.empleado_id as string | null,
+      // factura_detalle_servicios no tiene columnas de ayudante: solo las órdenes
+      ayuda: null,
     });
   }
 
@@ -556,6 +678,7 @@ export async function getGanancias(): Promise<GananciasResultado> {
     let ingreso = 0;
     let egreso = 0;
     let comision = 0;
+    let ayuda = 0;
 
     for (const r of repuestos) {
       const convIng = convertir(r.precio * r.cantidad, r.moneda_id, monedaBase.id, tasas);
@@ -572,6 +695,11 @@ export async function getGanancias(): Promise<GananciasResultado> {
         const convCom = convertir(m.comision, m.moneda_id, monedaBase.id, tasas);
         if (convCom !== null) comision += convCom;
       }
+      // Lo pagado al ayudante sale del taller, sin importar quién sea el titular
+      if (m.ayuda !== null && m.ayuda !== undefined) {
+        const convAyuda = convertir(m.ayuda, m.moneda_id, monedaBase.id, tasas);
+        if (convAyuda !== null) ayuda += convAyuda;
+      }
     }
 
     return {
@@ -581,7 +709,8 @@ export async function getGanancias(): Promise<GananciasResultado> {
       ingreso,
       egreso,
       comisionMecanico: comision,
-      ganancia: ingreso - egreso - comision,
+      ayudaMecanico: ayuda,
+      ganancia: ingreso - egreso - comision - ayuda,
     };
   });
 
@@ -594,12 +723,13 @@ export async function getGanancias(): Promise<GananciasResultado> {
     const clave = v.fecha.slice(0, 10);
     let d = porDia.get(clave);
     if (!d) {
-      d = { fecha: clave, ingreso: 0, egreso: 0, comisionMecanico: 0, ganancia: 0, cantidad: 0 };
+      d = { fecha: clave, ingreso: 0, egreso: 0, comisionMecanico: 0, ayudaMecanico: 0, ganancia: 0, cantidad: 0 };
       porDia.set(clave, d);
     }
     d.ingreso += v.ingreso;
     d.egreso += v.egreso;
     d.comisionMecanico += v.comisionMecanico;
+    d.ayudaMecanico += v.ayudaMecanico;
     d.ganancia += v.ganancia;
     d.cantidad += 1;
   }

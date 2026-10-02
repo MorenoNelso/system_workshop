@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -117,6 +117,8 @@ export function FacturasView({
   const [monedaId, setMonedaId] = useState("");
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Segundo paso de confirmación antes de emitir (la factura no se edita después)
+  const [confirmando, setConfirmando] = useState(false);
 
   const ordenSel = ordenesFacturables.find((o) => o.id === ordenSeleccionadaId);
   const monedaSel = monedas.find((m) => m.id === monedaId);
@@ -141,8 +143,14 @@ export function FacturasView({
     return cumpleEstado && (cliente.includes(term) || num.includes(term));
   });
 
+  // Guard contra doble envío (doble Enter/tap): el state no frena
+  // dos submits en el mismo tick, el ref sí.
+  const enviandoRef = useRef(false);
+
   async function handleGenerar(e: React.FormEvent) {
     e.preventDefault();
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     setGuardando(true);
     setError(null);
 
@@ -151,6 +159,7 @@ export function FacturasView({
       moneda_id: monedaId,
     });
     setGuardando(false);
+    enviandoRef.current = false;
 
     if (!res.ok) {
       setError(res.error ?? "Error desconocido");
@@ -160,11 +169,13 @@ export function FacturasView({
     if ("offline" in res && res.offline) {
       setError("Sin conexión. La factura se guardó y se enviará cuando vuelva internet.");
       setModalOpen(false);
+      setConfirmando(false);
       setOrdenSeleccionadaId("");
       return;
     }
 
     setModalOpen(false);
+    setConfirmando(false);
     setOrdenSeleccionadaId("");
     router.refresh();
     const facturaData = "data" in res ? (res.data as { id?: string }) : undefined;
@@ -190,8 +201,22 @@ export function FacturasView({
   const [srvMonto, setSrvMonto] = useState<number | string>("");
   const [srvMonedaId, setSrvMonedaId] = useState("");
   const [srvMecanicoId, setSrvMecanicoId] = useState("");
+  // Un solo modo de pago (antes % + override convivían y permitían guardar 0% sin darse cuenta)
+  const [srvModoPago, setSrvModoPago] = useState<"porcentaje" | "fijo">("porcentaje");
   const [srvComision, setSrvComision] = useState<number | string>("");
   const [srvMontoAPagar, setSrvMontoAPagar] = useState<number | string>("");
+
+  function handleSrvMecanicoChange(id: string) {
+    setSrvMecanicoId(id);
+    const mec = mecanicos.find((m) => m.id === id);
+    if (mec && mec.porcentaje_comision !== null && mec.porcentaje_comision !== undefined) {
+      setSrvComision(mec.porcentaje_comision);
+      setSrvModoPago("porcentaje");
+      setSrvMontoAPagar("");
+    } else {
+      setSrvComision("");
+    }
+  }
 
   const [creandoCliente, setCreandoCliente] = useState(false);
   const [nuevoNombre, setNuevoNombre] = useState("");
@@ -215,8 +240,11 @@ export function FacturasView({
     return t;
   })();
 
+  const [confirmandoRapida, setConfirmandoRapida] = useState(false);
+
   function abrirRapida() {
     setErrorRapida(null);
+    setConfirmandoRapida(false);
     setClienteRapidaId("");
     setMonedaRapidaId(monedas[0]?.id || "");
     setLineasRepuestos([]);
@@ -227,6 +255,9 @@ export function FacturasView({
     setSrvMonto("");
     setSrvMonedaId(monedas[0]?.id || "");
     setSrvMecanicoId("");
+    setSrvModoPago("porcentaje");
+    setSrvComision("");
+    setSrvMontoAPagar("");
     setModalRapida(true);
   }
 
@@ -288,6 +319,7 @@ export function FacturasView({
     const r = repuestos.find((x) => x.id === repSel);
     if (!r) return;
     if (repCant < 1 || repCant > r.stock_actual) return;
+    setConfirmandoRapida(false);
     setLineasRepuestos((prev) => [
       ...prev,
       {
@@ -304,11 +336,18 @@ export function FacturasView({
   }
 
   function removeRepuesto(idx: number) {
+    setConfirmandoRapida(false);
     setLineasRepuestos((prev) => prev.filter((_, i) => i !== idx));
   }
 
   function addServicio() {
     if (!srvDesc.trim() || srvMonto === "" || Number(srvMonto) < 0) return;
+    // Solo se envía UNA de las dos formas de pago, según el modo elegido
+    const esPorcentaje = !srvMecanicoId || srvModoPago === "porcentaje";
+    const porc = esPorcentaje && srvComision !== "" ? Number(srvComision) : null;
+    const fijo = srvMecanicoId && !esPorcentaje && srvMontoAPagar !== "" ? Number(srvMontoAPagar) : null;
+    if (srvMecanicoId && porc === null && fijo === null) return;
+    setConfirmandoRapida(false);
     setLineasServicios((prev) => [
       ...prev,
       {
@@ -316,24 +355,27 @@ export function FacturasView({
         monto: Number(srvMonto),
         moneda_id: srvMonedaId,
         empleado_id: srvMecanicoId,
-        porcentaje_comision_aplicado: srvComision !== "" ? Number(srvComision) : null,
-        monto_a_pagar: srvMontoAPagar !== "" ? Number(srvMontoAPagar) : null,
+        porcentaje_comision_aplicado: porc,
+        monto_a_pagar: fijo,
       },
     ]);
     setSrvDesc("");
     setSrvMonto("");
     setSrvMecanicoId("");
+    setSrvModoPago("porcentaje");
     setSrvComision("");
     setSrvMontoAPagar("");
   }
 
   function removeServicio(idx: number) {
+    setConfirmandoRapida(false);
     setLineasServicios((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function handleRapida(e: React.FormEvent) {
     e.preventDefault();
-    if (guardandoRapida) return;
+    if (guardandoRapida || enviandoRef.current) return;
+    enviandoRef.current = true;
     setGuardandoRapida(true);
     setErrorRapida(null);
 
@@ -354,6 +396,7 @@ export function FacturasView({
       })),
     });
     setGuardandoRapida(false);
+    enviandoRef.current = false;
 
     if (!res.ok) {
       setErrorRapida(res.error ?? "Error desconocido");
@@ -363,10 +406,12 @@ export function FacturasView({
     if ("offline" in res && res.offline) {
       setErrorRapida("Sin conexión. La venta se guardó y se enviará cuando vuelva internet.");
       setModalRapida(false);
+      setConfirmandoRapida(false);
       return;
     }
 
     setModalRapida(false);
+    setConfirmandoRapida(false);
     router.refresh();
     const rapidaData = "data" in res ? (res.data as { id?: string }) : undefined;
     if (rapidaData?.id) {
@@ -398,6 +443,7 @@ export function FacturasView({
             type="button"
             onClick={() => {
               setError(null);
+              setConfirmando(false);
               setModalOpen(true);
             }}
             className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition active:scale-[0.98] hover:bg-brand-700"
@@ -539,7 +585,10 @@ export function FacturasView({
                   <select
                     required
                     value={ordenSeleccionadaId}
-                    onChange={(e) => setOrdenSeleccionadaId(e.target.value)}
+                    onChange={(e) => {
+                      setOrdenSeleccionadaId(e.target.value);
+                      setConfirmando(false);
+                    }}
                     className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   >
                     <option value="">— Seleccionar orden —</option>
@@ -608,7 +657,10 @@ export function FacturasView({
                   <select
                     required
                     value={monedaId}
-                    onChange={(e) => setMonedaId(e.target.value)}
+                    onChange={(e) => {
+                      setMonedaId(e.target.value);
+                      setConfirmando(false);
+                    }}
                     className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   >
                     <option value="">— Seleccionar moneda —</option>
@@ -633,7 +685,21 @@ export function FacturasView({
                       {monedaSel.simbolo} {totalPreview.toFixed(2)}
                     </p>
                     <p className="text-xs text-zinc-400">
-                      Equivale al total de la orden convertido a {monedaSel.codigo}.
+                      {ordenSel.linea_repuestos} repuesto(s) + {ordenSel.linea_mano_obra} servicio(s) · convertido a {monedaSel.codigo}.
+                    </p>
+                  </div>
+                )}
+
+                {confirmando && ordenSel && monedaSel && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-semibold">¿Emitir esta factura?</p>
+                    <p className="mt-1">
+                      {ordenSel.cliente?.nombre} pagará{" "}
+                      <span className="font-bold">
+                        {monedaSel.simbolo} {totalPreview.toFixed(2)}
+                      </span>
+                      . Quedará congelada y no se podrá editar; si hay un error
+                      solo se corrige anulando.
                     </p>
                   </div>
                 )}
@@ -642,18 +708,32 @@ export function FacturasView({
               <div className="flex items-center justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4">
                 <button
                   type="button"
-                  onClick={() => setModalOpen(false)}
+                  onClick={() => {
+                    setModalOpen(false);
+                    setConfirmando(false);
+                  }}
                   className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 active:scale-[0.98]"
                 >
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  disabled={guardando || !ordenSel || !monedaSel}
-                  className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
-                >
-                  {guardando ? "Generando..." : "Generar Factura"}
-                </button>
+                {!confirmando ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmando(true)}
+                    disabled={guardando || !ordenSel || !monedaSel}
+                    className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
+                  >
+                    Revisar y emitir
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={guardando || !ordenSel || !monedaSel}
+                    className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {guardando ? "Generando..." : "Sí, emitir factura"}
+                  </button>
+                )}
               </div>
             </form>
           </div>
@@ -736,7 +816,10 @@ export function FacturasView({
                         <select
                           required
                           value={clienteRapidaId}
-                          onChange={(e) => setClienteRapidaId(e.target.value)}
+                          onChange={(e) => {
+                            setClienteRapidaId(e.target.value);
+                            setConfirmandoRapida(false);
+                          }}
                           className="mt-1 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                         >
                           <option value="">— Seleccionar —</option>
@@ -763,7 +846,10 @@ export function FacturasView({
                     <select
                       required
                       value={monedaRapidaId}
-                      onChange={(e) => setMonedaRapidaId(e.target.value)}
+                      onChange={(e) => {
+                        setMonedaRapidaId(e.target.value);
+                        setConfirmandoRapida(false);
+                      }}
                       className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                     >
                       <option value="">— Seleccionar —</option>
@@ -872,7 +958,7 @@ export function FacturasView({
                         />
                       </div>
                       <div className="w-24">
-                        <label className="text-[10px] font-medium text-zinc-500">Monto</label>
+                        <label className="text-[10px] font-medium text-zinc-500">Precio cliente</label>
                         <input
                           type="number"
                           step={0.01}
@@ -903,13 +989,16 @@ export function FacturasView({
                         <label className="text-[10px] font-medium text-zinc-500">Mecánico (opcional)</label>
                         <select
                           value={srvMecanicoId}
-                          onChange={(e) => setSrvMecanicoId(e.target.value)}
+                          onChange={(e) => handleSrvMecanicoChange(e.target.value)}
                           className="mt-0.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                         >
                           <option value="">— Ninguno —</option>
                           {mecanicos.map((m) => (
                             <option key={m.id} value={m.id}>
-                              {m.nombre}
+                              {m.nombre}{" "}
+                              {m.porcentaje_comision === null || m.porcentaje_comision === undefined
+                                ? "(sin %)"
+                                : `(${m.porcentaje_comision}%)`}
                             </option>
                           ))}
                         </select>
@@ -924,32 +1013,59 @@ export function FacturasView({
                       </button>
                     </div>
                     {srvMecanicoId && (
-                      <div className="flex items-end gap-2">
-                        <div className="w-24">
-                          <label className="text-[10px] font-medium text-zinc-500">% Comisión</label>
-                          <input
-                            type="number"
-                            step={0.5}
-                            min={0}
-                            max={100}
-                            value={srvComision}
-                            onChange={(e) => setSrvComision(e.target.value)}
-                            placeholder="%"
-                            className="mt-0.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
-                          />
+                      <div className="rounded-lg bg-zinc-50 p-2">
+                        <label className="text-[10px] font-medium text-zinc-500">¿Cómo se le paga? *</label>
+                        <div className="mt-1 grid grid-cols-2 gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setSrvModoPago("porcentaje")}
+                            className={`rounded-md border px-2 py-1.5 text-xs font-medium transition ${srvModoPago === "porcentaje" ? "border-brand-600 bg-white text-brand-700" : "border-zinc-200 bg-white text-zinc-500"}`}
+                          >
+                            % del precio
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSrvModoPago("fijo")}
+                            className={`rounded-md border px-2 py-1.5 text-xs font-medium transition ${srvModoPago === "fijo" ? "border-brand-600 bg-white text-brand-700" : "border-zinc-200 bg-white text-zinc-500"}`}
+                          >
+                            Monto fijo
+                          </button>
                         </div>
-                        <div className="flex-1">
-                          <label className="text-[10px] font-medium text-zinc-500">Monto a pagar al mecánico (override)</label>
-                          <input
-                            type="number"
-                            step={0.01}
-                            min={0}
-                            value={srvMontoAPagar}
-                            onChange={(e) => setSrvMontoAPagar(e.target.value)}
-                            placeholder="Monto manual"
-                            className="mt-0.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
-                          />
-                        </div>
+                        {srvModoPago === "porcentaje" ? (
+                          <div className="mt-1.5">
+                            <label className="text-[10px] font-medium text-zinc-500">% de comisión *</label>
+                            <input
+                              type="number"
+                              step={0.5}
+                              min={0}
+                              max={100}
+                              value={srvComision}
+                              onChange={(e) => setSrvComision(e.target.value)}
+                              placeholder="Ej: 30"
+                              className="mt-0.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                            />
+                            {srvMonto !== "" && srvComision !== "" && (
+                              <p className="mt-1 text-[11px] text-emerald-700">
+                                Gana ${((Number(srvMonto) * Number(srvComision)) / 100).toFixed(2)}
+                                {Number(srvComision) === 0 ? " — ojo: comisión $0" : ""}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="mt-1.5">
+                            <label className="text-[10px] font-medium text-zinc-500">Monto fijo que gana *</label>
+                            <input
+                              type="number"
+                              step={0.01}
+                              min={0}
+                              value={srvMontoAPagar}
+                              onChange={(e) => setSrvMontoAPagar(e.target.value)}
+                              placeholder="Lo acordado"
+                              className="mt-0.5 w-full rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                            />
+                            <p className="mt-1 text-[11px] text-zinc-500">Para repartos con ayudante usa una orden.</p>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
@@ -962,6 +1078,11 @@ export function FacturasView({
                             {s.empleado_id && (
                               <span className="ml-1.5 text-xs text-zinc-400">
                                 · {mecanicos.find((m) => m.id === s.empleado_id)?.nombre}
+                                {s.monto_a_pagar !== null && s.monto_a_pagar !== undefined
+                                  ? ` · gana fijo $${Number(s.monto_a_pagar).toFixed(2)}`
+                                  : s.porcentaje_comision_aplicado !== null && s.porcentaje_comision_aplicado !== undefined
+                                    ? ` · ${s.porcentaje_comision_aplicado}% ($${((s.monto * Number(s.porcentaje_comision_aplicado)) / 100).toFixed(2)})`
+                                    : ""}
                               </span>
                             )}
                           </span>
@@ -994,7 +1115,38 @@ export function FacturasView({
                       {monedaRapida.simbolo} {totalRapida.toFixed(2)}
                     </p>
                     <p className="text-xs text-zinc-400">
-                      El stock se descuenta al generar la factura.
+                      {lineasRepuestos.length} repuesto(s) + {lineasServicios.length} servicio(s) · el stock se descuenta al generar.
+                    </p>
+                  </div>
+                )}
+
+                {confirmandoRapida && monedaRapida && (lineasRepuestos.length > 0 || lineasServicios.length > 0) && (
+                  <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+                    <p className="font-semibold">¿Emitir esta factura?</p>
+                    <p className="mt-1">
+                      {clientesState.find((c) => c.id === clienteRapidaId)?.nombre} pagará{" "}
+                      <span className="font-bold">
+                        {monedaRapida.simbolo} {totalRapida.toFixed(2)}
+                      </span>
+                      {lineasServicios.some((s) => s.empleado_id) && (
+                        <>
+                          {" · mecánicos ganan "}
+                          <span className="font-bold">
+                            {monedaRapida.simbolo}{" "}
+                            {lineasServicios
+                              .reduce((acc, s) => {
+                                if (!s.empleado_id) return acc;
+                                if (s.monto_a_pagar !== null && s.monto_a_pagar !== undefined)
+                                  return acc + Number(s.monto_a_pagar);
+                                if (s.porcentaje_comision_aplicado !== null && s.porcentaje_comision_aplicado !== undefined)
+                                  return acc + (s.monto * Number(s.porcentaje_comision_aplicado)) / 100;
+                                return acc;
+                              }, 0)
+                              .toFixed(2)}
+                          </span>
+                        </>
+                      )}
+                      . Quedará congelada y no se podrá editar.
                     </p>
                   </div>
                 )}
@@ -1003,18 +1155,32 @@ export function FacturasView({
               <div className="flex items-center justify-end gap-3 border-t border-zinc-200 bg-zinc-50 px-6 py-4">
                 <button
                   type="button"
-                  onClick={() => setModalRapida(false)}
+                  onClick={() => {
+                    setModalRapida(false);
+                    setConfirmandoRapida(false);
+                  }}
                   className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-100 active:scale-[0.98]"
                 >
                   Cancelar
                 </button>
-                <button
-                  type="submit"
-                  disabled={guardandoRapida || !clienteRapidaId || !monedaRapidaId || (lineasRepuestos.length === 0 && lineasServicios.length === 0)}
-                  className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
-                >
-                  {guardandoRapida ? "Generando..." : "Generar Factura"}
-                </button>
+                {!confirmandoRapida ? (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmandoRapida(true)}
+                    disabled={guardandoRapida || !clienteRapidaId || !monedaRapidaId || (lineasRepuestos.length === 0 && lineasServicios.length === 0)}
+                    className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
+                  >
+                    Revisar y emitir
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={guardandoRapida || !clienteRapidaId || !monedaRapidaId || (lineasRepuestos.length === 0 && lineasServicios.length === 0)}
+                    className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {guardandoRapida ? "Generando..." : "Sí, emitir factura"}
+                  </button>
+                )}
               </div>
             </form>
           </div>

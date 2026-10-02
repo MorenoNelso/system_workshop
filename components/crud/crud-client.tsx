@@ -50,7 +50,10 @@ export function CrudClient({ config, rows: initialRows }: Props) {
   const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const colFields = useMemo(
-    () => config.columns.map((n) => config.fields.find((f) => f.name === n)!),
+    () =>
+      config.columns
+        .map((n) => config.fields.find((f) => f.name === n))
+        .filter((f): f is Field => Boolean(f)),
     [config],
   );
 
@@ -292,14 +295,16 @@ export function CrudClient({ config, rows: initialRows }: Props) {
                           {a.label}
                         </button>
                       ))}
-                      <button
-                        type="button"
-                        disabled={pending !== null}
-                        onClick={() => openEdit(row)}
-                        className="rounded-md px-2 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 active:scale-[0.98] disabled:opacity-50"
-                      >
-                        Editar
-                      </button>
+                      {!config.hideEdit && (
+                        <button
+                          type="button"
+                          disabled={pending !== null}
+                          onClick={() => openEdit(row)}
+                          className="rounded-md px-2 py-1 text-xs font-medium text-brand-600 transition hover:bg-brand-50 active:scale-[0.98] disabled:opacity-50"
+                        >
+                          Editar
+                        </button>
+                      )}
                       {!config.hideDelete && (
                         <button
                           type="button"

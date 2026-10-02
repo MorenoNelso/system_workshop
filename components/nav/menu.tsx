@@ -92,7 +92,7 @@ export function NavMenu({ esAdmin }: Props) {
           } satisfies NavGroup,
         ]
       : []),
-  ];
+  ].filter((g) => g.items.length > 0);
 
   const isActive = (href: string) =>
     href === "/" ? pathname === "/" : pathname.startsWith(href);

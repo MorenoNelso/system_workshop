@@ -40,7 +40,8 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 | `createCliente`, `updateCliente` | Cualquier autenticado | Clientes se crean desde facturación y órdenes |
 | `deleteCliente`, `deleteRepuesto`, `deleteOrden`, `eliminarManoObraDeOrden` | Admin (via `requireEliminar`) | Eliminación restringida |
 | `listEmpleados`, `getResumenEmpleados`, `create/update/deleteEmpleado` | Admin | Datos de salarios/comisiones |
-| `create/update/deleteFactura`, `registrarPago`, `anularFactura` | Admin | Solo admin gestiona facturación |
+| `createFactura`, `createFacturaDirecta`, `registrarPago` | Admin + colaborador | El colaborador factura y cobra cuando el dueño no está |
+| `update/deleteFactura`, `anularFactura` | Admin | Solo admin anula/elimina. Anular pagada exige motivo + reversa pagos vía RPC `anular_factura_atomica` (migración rastreada en `supabase/migrations/`) |
 | `listGastos`, `createGasto`, `deleteGasto`, `getResumenGastos` | Admin | Contabilidad |
 | `listDeducciones`, `createDeduccion`, `deleteDeduccion`, `getDeduccionesPorMecanico` | Admin | Contabilidad |
 | `listUsuarios`, `crearUsuario`, `toggleUsuarioActivo`, `cambiarRolUsuario` | Admin | Gestión de usuarios |
@@ -52,14 +53,14 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 |---|---|---|---|
 | Clientes | ✅ Full | ✅ Ver + crear/editar | `hideDelete: !isAdmin` |
 | Motos | ✅ Full | ✅ Ver + crear/editar | `hideDelete: !isAdmin` |
-| Repuestos | ✅ Full | ✅ Ver + crear/editar | `hideDelete: !isAdmin` |
+| Repuestos | ✅ Full | ✅ Solo ver | `hideCreate + hideEdit + hideDelete: !isAdmin` (servidor + RLS también bloquean) |
 | Inventario (Kardex) | ✅ Full | ✅ Solo ver | Página read-only |
 | Proveedores | ✅ Full | ❌ No accede | `requireRole("administrador")` |
 | Categorías | ✅ Full | ❌ No accede | `requireRole("administrador")` |
 | Empleados | ✅ Full | ✅ Ver (sin crear/editar) | `hideCreate + hideDelete: !isAdmin` |
-| Facturas | ✅ Full | ✅ Ver | `hideDelete` |
+| Facturas | ✅ Full | ✅ Ver + crear/cobrar (sin anular ni eliminar) | `hideDelete` + solo admin anula |
 | Órdenes | ✅ Full | ✅ Full | Permisos por estado |
-| Dashboard | ✅ Todo taller | ✅ Solo "Mi producción" | Filtro por rol en server |
+| Dashboard | ✅ Todo taller | ✅ "Mi producción" del mes + deducciones + neta | Filtro por rol en server |
 
 ---
 

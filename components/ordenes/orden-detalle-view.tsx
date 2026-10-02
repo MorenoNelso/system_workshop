@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { executeOrEnqueue } from "@/lib/offline/queue";
@@ -101,19 +101,36 @@ export function OrdenDetalleView({
   const [descripcionMO, setDescripcionMO] = useState("");
   const [montoMO, setMontoMO] = useState<number | string>("");
   const [monedaMOId, setMonedaMOId] = useState(monedas[0]?.id || "");
+  // Un solo modo de pago (antes había 2 campos opcionales que se pisaban
+  // y permitían guardar 0% sin darse cuenta).
+  const [modoPagoMO, setModoPagoMO] = useState<"porcentaje" | "fijo">("porcentaje");
   const [comisionMO, setComisionMO] = useState<number | string>("");
   const [montoAPagarMO, setMontoAPagarMO] = useState<number | string>("");
   const [ayudanteId, setAyudanteId] = useState<string>("");
   const [ayudanteMonto, setAyudanteMonto] = useState<number | string>("");
   const [guardandoMO, setGuardandoMO] = useState(false);
   const [errorMO, setErrorMO] = useState<string | null>(null);
+  // Clave de idempotencia: se genera al ABRIR el modal (no al enviar), así
+  // todos los reintentos del mismo formulario comparten la misma fila.
+  const [claveFilaMO, setClaveFilaMO] = useState(() => crypto.randomUUID());
+  const [claveFilaRep, setClaveFilaRep] = useState(() => crypto.randomUUID());
+  // Aviso de "quedó en cola offline" (se muestra fuera del modal, que se cierra)
+  const [avisoPendiente, setAvisoPendiente] = useState<string | null>(null);
+  // Guard contra doble envío (doble tap / Enter): el state no frena
+  // dos submits en el mismo tick, el ref sí.
+  const enviandoRepuestoRef = useRef(false);
+  const enviandoMORef = useRef(false);
 
-  // Cuando cambia el mecánico seleccionado en el modal de mano de obra, actualizar su % sugerido
+  // Cuando cambia el mecánico seleccionado, sugerir su % y volver al modo %
   const handleMecanicoChange = (id: string) => {
     setMecanicoId(id);
     const mec = mecanicos.find((m) => m.id === id);
-    if (mec && mec.porcentaje_comision !== null) {
+    if (mec && mec.porcentaje_comision !== null && mec.porcentaje_comision !== undefined) {
       setComisionMO(mec.porcentaje_comision);
+      setModoPagoMO("porcentaje");
+      setMontoAPagarMO("");
+    } else {
+      setComisionMO("");
     }
   };
 
@@ -140,18 +157,28 @@ export function OrdenDetalleView({
   // Agregar Repuesto
   async function handleAgregarRepuesto(e: React.FormEvent) {
     e.preventDefault();
+    if (enviandoRepuestoRef.current) return;
+    enviandoRepuestoRef.current = true;
     setGuardandoRepuesto(true);
     setErrorRepuesto(null);
+    setAvisoPendiente(null);
 
     const res = await executeOrEnqueue("agregarRepuestoAOrden", {
+      id: claveFilaRep,
       orden_id: orden.id,
       repuesto_id: repuestoSeleccionadoId,
       cantidad: Number(cantidadRepuesto),
     });
 
     setGuardandoRepuesto(false);
+    enviandoRepuestoRef.current = false;
     if ("offline" in res && res.offline) {
-      setErrorRepuesto("Sin conexión. Se guardará cuando vuelva internet.");
+      // Se cierra el modal para que no se reintente y duplique al sincronizar
+      setModalRepuesto(false);
+      setRepuestoSeleccionadoId("");
+      setCantidadRepuesto(1);
+      setClaveFilaRep(crypto.randomUUID());
+      setAvisoPendiente("Sin conexión: el repuesto quedó en cola y se guardará cuando vuelva internet.");
       return;
     }
     if (!res.ok) {
@@ -162,6 +189,7 @@ export function OrdenDetalleView({
     setModalRepuesto(false);
     setRepuestoSeleccionadoId("");
     setCantidadRepuesto(1);
+    setClaveFilaRep(crypto.randomUUID());
     router.refresh();
   }
 
@@ -182,27 +210,58 @@ export function OrdenDetalleView({
     router.refresh();
   }
 
-  // Agregar Mano de Obra
+  // Agregar Mano de Obra (un solo modo de pago: % o monto fijo)
   async function handleAgregarManoObra(e: React.FormEvent) {
     e.preventDefault();
+    if (enviandoMORef.current) return;
+    enviandoMORef.current = true;
     setGuardandoMO(true);
     setErrorMO(null);
+    setAvisoPendiente(null);
+
+    const esPorcentaje = modoPagoMO === "porcentaje";
+    const porc = esPorcentaje && comisionMO !== "" ? Number(comisionMO) : null;
+    const fijo = !esPorcentaje && montoAPagarMO !== "" ? Number(montoAPagarMO) : null;
+    if (esPorcentaje && (porc === null || Number.isNaN(porc))) {
+      setGuardandoMO(false);
+      enviandoMORef.current = false;
+      setErrorMO("Indica el % de comisión o cambia a monto fijo.");
+      return;
+    }
+    if (!esPorcentaje && (fijo === null || Number.isNaN(fijo))) {
+      setGuardandoMO(false);
+      enviandoMORef.current = false;
+      setErrorMO("Indica el monto fijo que gana el mecánico.");
+      return;
+    }
 
     const res = await executeOrEnqueue("agregarManoObraAOrden", {
+      id: claveFilaMO,
       orden_id: orden.id,
       empleado_id: mecanicoId,
       descripcion: descripcionMO,
       monto: Number(montoMO),
       moneda_id: monedaMOId,
-      porcentaje_comision_aplicado: comisionMO !== "" ? Number(comisionMO) : null,
-      monto_a_pagar: montoAPagarMO !== "" ? Number(montoAPagarMO) : null,
+      porcentaje_comision_aplicado: porc,
+      monto_a_pagar: fijo,
       ayudante_id: ayudanteId || null,
       ayudante_monto: ayudanteMonto !== "" ? Number(ayudanteMonto) : null,
     });
 
     setGuardandoMO(false);
+    enviandoMORef.current = false;
     if ("offline" in res && res.offline) {
-      setErrorMO("Sin conexión. Se guardará cuando vuelva internet.");
+      // Se cierra el modal para que no se reintente y duplique al sincronizar
+      setModalManoObra(false);
+      setDescripcionMO("");
+      setMontoMO("");
+      setModoPagoMO("porcentaje");
+      setComisionMO("");
+      setMontoAPagarMO("");
+      setAyudanteId("");
+      setAyudanteMonto("");
+      setClaveFilaMO(crypto.randomUUID());
+      setAvisoPendiente("Sin conexión: la mano de obra quedó en cola y se guardará cuando vuelva internet.");
       return;
     }
     if (!res.ok) {
@@ -213,9 +272,12 @@ export function OrdenDetalleView({
     setModalManoObra(false);
     setDescripcionMO("");
     setMontoMO("");
+    setModoPagoMO("porcentaje");
+    setComisionMO("");
     setMontoAPagarMO("");
     setAyudanteId("");
     setAyudanteMonto("");
+    setClaveFilaMO(crypto.randomUUID());
     router.refresh();
   }
 
@@ -362,6 +424,7 @@ export function OrdenDetalleView({
             type="button"
             onClick={() => {
               setErrorRepuesto(null);
+              setClaveFilaRep(crypto.randomUUID());
               setModalRepuesto(true);
             }}
             className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98]"
@@ -369,6 +432,12 @@ export function OrdenDetalleView({
             + Agregar Repuesto
           </button>
         </div>
+
+        {avisoPendiente && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {avisoPendiente}
+          </div>
+        )}
 
         {/* Tabla de Repuestos */}
         <div className="overflow-x-auto rounded-xl border border-zinc-100">
@@ -450,6 +519,7 @@ export function OrdenDetalleView({
             type="button"
             onClick={() => {
               setErrorMO(null);
+              setClaveFilaMO(crypto.randomUUID());
               setModalManoObra(true);
             }}
             className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm transition hover:bg-brand-700 active:scale-[0.98]"
@@ -457,6 +527,12 @@ export function OrdenDetalleView({
             + Agregar Mano de Obra
           </button>
         </div>
+
+        {avisoPendiente && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+            {avisoPendiente}
+          </div>
+        )}
 
         {/* Tabla de Mano de Obra */}
         <div className="overflow-x-auto rounded-xl border border-zinc-100">
@@ -559,8 +635,8 @@ export function OrdenDetalleView({
 
       {/* MODAL: AGREGAR REPUESTO */}
       {modalRepuesto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-zinc-900/40 p-4">
+          <div className="my-auto max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-zinc-200 bg-white shadow-xl">
             <div className="px-6 pt-5 pb-3">
               <h3 className="text-base font-semibold text-zinc-900">Agregar Repuesto a la Orden</h3>
               <p className="text-xs text-zinc-500">El stock se descontará automáticamente.</p>
@@ -633,8 +709,8 @@ export function OrdenDetalleView({
 
       {/* MODAL: AGREGAR MANO DE OBRA */}
       {modalManoObra && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/40 p-4">
-          <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-zinc-900/40 p-4">
+          <div className="my-auto max-h-[90vh] w-full max-w-md overflow-y-auto rounded-2xl border border-zinc-200 bg-white shadow-xl">
             <div className="px-6 pt-5 pb-3">
               <h3 className="text-base font-semibold text-zinc-900">Agregar Mano de Obra</h3>
               <p className="text-xs text-zinc-500">Se calculará la comisión del mecánico automáticamente.</p>
@@ -658,7 +734,10 @@ export function OrdenDetalleView({
                   <option value="">— Seleccionar mecánico —</option>
                   {mecanicos.map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.nombre} {m.porcentaje_comision ? `(${m.porcentaje_comision}% com.)` : ""}
+                      {m.nombre}{" "}
+                      {m.porcentaje_comision === null || m.porcentaje_comision === undefined
+                        ? "(sin % configurado)"
+                        : `(${m.porcentaje_comision}% com.)`}
                     </option>
                   ))}
                 </select>
@@ -678,7 +757,7 @@ export function OrdenDetalleView({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-zinc-700">Monto / Precio *</label>
+                  <label className="text-xs font-medium text-zinc-700">Precio que paga el cliente *</label>
                   <input
                     type="number"
                     step={0.01}
@@ -689,6 +768,7 @@ export function OrdenDetalleView({
                     onChange={(e) => setMontoMO(e.target.value)}
                     className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
                   />
+                  <p className="mt-1 text-[11px] text-zinc-500">Es lo que se suma en la factura.</p>
                 </div>
 
                 <div>
@@ -708,40 +788,62 @@ export function OrdenDetalleView({
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-medium text-zinc-700">
-                  % Comisión Aplicado (opcional, hereda del empleado si se deja vacío)
-                </label>
-                <input
-                  type="number"
-                  step={0.5}
-                  min={0}
-                  max={100}
-                  placeholder="Ej: 30"
-                  value={comisionMO}
-                  onChange={(e) => setComisionMO(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
-                />
-              </div>
+              <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                <label className="text-xs font-medium text-zinc-700">¿Cómo se le paga al mecánico? *</label>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModoPagoMO("porcentaje")}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${modoPagoMO === "porcentaje" ? "border-brand-600 bg-white text-brand-700 shadow-sm" : "border-zinc-200 bg-white text-zinc-500"}`}
+                  >
+                    % del precio
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setModoPagoMO("fijo")}
+                    className={`rounded-lg border px-3 py-2 text-xs font-medium transition ${modoPagoMO === "fijo" ? "border-brand-600 bg-white text-brand-700 shadow-sm" : "border-zinc-200 bg-white text-zinc-500"}`}
+                  >
+                    Monto fijo
+                  </button>
+                </div>
 
-              <div>
-                <label className="text-xs font-medium text-zinc-700">
-                  Monto a pagar al mecánico (opcional, sobreescribe el cálculo por %)
-                </label>
-                <input
-                  type="number"
-                  step={0.01}
-                  min={0}
-                  placeholder="Ej: 40 (lo que realmente gana el mecánico)"
-                  value={montoAPagarMO}
-                  onChange={(e) => setMontoAPagarMO(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
-                />
+                {modoPagoMO === "porcentaje" ? (
+                  <div className="mt-3">
+                    <label className="text-xs font-medium text-zinc-700">% de comisión *</label>
+                    <input
+                      type="number"
+                      step={0.5}
+                      min={0}
+                      max={100}
+                      required
+                      placeholder="Ej: 30"
+                      value={comisionMO}
+                      onChange={(e) => setComisionMO(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                    />
+                    <p className="mt-1 text-[11px] text-zinc-500">Se trae el % del empleado; ajústalo solo si este trabajo paga distinto.</p>
+                  </div>
+                ) : (
+                  <div className="mt-3">
+                    <label className="text-xs font-medium text-zinc-700">Monto fijo que gana *</label>
+                    <input
+                      type="number"
+                      step={0.01}
+                      min={0}
+                      required
+                      placeholder="Ej: 40 (lo acordado con el mecánico)"
+                      value={montoAPagarMO}
+                      onChange={(e) => setMontoAPagarMO(e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100"
+                    />
+                    <p className="mt-1 text-[11px] text-zinc-500">Úsalo cuando el dueño le pasa una parte acordada al que trabajó/ayudó.</p>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-medium text-zinc-700">Ayudante (opcional)</label>
+                  <label className="text-xs font-medium text-zinc-700">¿Alguien ayudó? (opcional)</label>
                   <select
                     value={ayudanteId}
                     onChange={(e) => setAyudanteId(e.target.value)}
@@ -756,7 +858,7 @@ export function OrdenDetalleView({
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs font-medium text-zinc-700">Monto para ayudante</label>
+                  <label className="text-xs font-medium text-zinc-700">Monto fijo para el ayudante</label>
                   <input
                     type="number"
                     step={0.01}
@@ -770,25 +872,30 @@ export function OrdenDetalleView({
                 </div>
               </div>
 
-              {montoMO && (
+              {montoMO !== "" && (
                 <div className="rounded-lg bg-emerald-50 p-2.5 text-xs text-emerald-800">
-                  {montoAPagarMO !== "" ? (
-                    <>
-                      El mecánico gana:{" "}
-                      <span className="font-bold">
-                        ${Number(montoAPagarMO).toFixed(2)}
-                      </span>
-                      <span className="ml-2 text-emerald-600">(monto manual)</span>
-                    </>
-                  ) : comisionMO ? (
-                    <>
-                      Comisión calculada:{" "}
-                      <span className="font-bold">
-                        ${((Number(montoMO) * Number(comisionMO)) / 100).toFixed(2)}
-                      </span>
-                      <span className="ml-2 text-emerald-600">({comisionMO}% del monto)</span>
-                    </>
-                  ) : null}
+                  {(() => {
+                    const precio = Number(montoMO);
+                    const ayuda = ayudanteMonto !== "" ? Number(ayudanteMonto) : 0;
+                    const pago = modoPagoMO === "fijo"
+                      ? (montoAPagarMO !== "" ? Number(montoAPagarMO) : null)
+                      : (comisionMO !== "" ? (precio * Number(comisionMO)) / 100 : null);
+                    if (pago === null || Number.isNaN(pago) || Number.isNaN(precio)) return null;
+                    const taller = precio - pago - (Number.isNaN(ayuda) ? 0 : ayuda);
+                    return (
+                      <>
+                        Cliente paga <span className="font-bold">${precio.toFixed(2)}</span>
+                        {" · "}mecánico gana <span className="font-bold">${pago.toFixed(2)}</span>
+                        {ayudanteId && ayudanteMonto !== "" ? (
+                          <>{" · "}ayudante gana <span className="font-bold">${ayuda.toFixed(2)}</span></>
+                        ) : null}
+                        {" · "}al taller le quedan <span className="font-bold">${taller.toFixed(2)}</span>
+                        {pago === 0 ? (
+                          <span className="ml-2 font-semibold text-amber-700">— ojo: comisión $0</span>
+                        ) : null}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
 
