@@ -75,6 +75,8 @@ interface Props {
   repuestosDisponibles: RepuestoDisponible[];
   mecanicos: EmpleadoLite[];
   monedas: MonedaLite[];
+  /** Quitar líneas de mano de obra: solo admin (el servidor también lo exige). */
+  esAdmin?: boolean;
 }
 
 export function OrdenDetalleView({
@@ -82,6 +84,7 @@ export function OrdenDetalleView({
   repuestosDisponibles,
   mecanicos,
   monedas,
+  esAdmin = false,
 }: Props) {
   const router = useRouter();
   const [estado, setEstado] = useState(orden.estado);
@@ -579,13 +582,15 @@ export function OrdenDetalleView({
                       ) : "—"}
                     </td>
                     <td className="px-4 py-2.5 text-right">
-                      <button
-                        type="button"
-                        onClick={() => handleEliminarManoObra(item.id)}
-                        className="rounded px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                      >
-                        Quitar
-                      </button>
+                      {esAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => handleEliminarManoObra(item.id)}
+                          className="rounded px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
+                        >
+                          Quitar
+                        </button>
+                      )}
                     </td>
                   </tr>
                 ))

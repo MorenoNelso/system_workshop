@@ -42,8 +42,8 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 | `listEmpleados`, `getResumenEmpleados`, `create/update/deleteEmpleado` | Admin | Datos de salarios/comisiones |
 | `createFactura`, `createFacturaDirecta`, `registrarPago` | Admin + colaborador | El colaborador factura y cobra cuando el dueño no está |
 | `update/deleteFactura`, `anularFactura` | Admin | Solo admin anula/elimina. Anular pagada exige motivo + reversa pagos vía RPC `anular_factura_atomica` (migración rastreada en `supabase/migrations/`) |
-| `listGastos`, `createGasto`, `deleteGasto`, `getResumenGastos` | Admin | Contabilidad |
-| `listDeducciones`, `createDeduccion`, `deleteDeduccion`, `getDeduccionesPorMecanico` | Admin | Contabilidad |
+| `listGastos`, `createGasto`, `deleteGasto` | Admin | Contabilidad |
+| `listDeducciones`, `createDeduccion`, `deleteDeduccion` | Admin | Contabilidad |
 | `listUsuarios`, `crearUsuario`, `toggleUsuarioActivo`, `cambiarRolUsuario` | Admin | Gestión de usuarios |
 | `registrarTasa` | Admin | Tasas de cambio |
 

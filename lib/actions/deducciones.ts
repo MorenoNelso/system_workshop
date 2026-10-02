@@ -3,7 +3,6 @@
 import { deduccionSchema, validate } from "@/lib/schemas";
 import { requireRole } from "@/lib/auth/session";
 import { rateLimitAdmin } from "@/lib/rate-limit";
-import { convertir, getMonedaBaseYTasas } from "@/lib/currency";
 import {
   db,
   friendlyDbError,
@@ -70,64 +69,4 @@ export async function deleteDeduccion(id: string): Promise<ActionResult> {
   if (error) return { ok: false, error: friendlyDbError("eliminar la deducción") };
   touch(PATH);
   return { ok: true };
-}
-
-export async function getDeduccionesPorMecanico(
-  mes?: number,
-  anio?: number,
-): Promise<
-  Array<{
-    empleadoId: string;
-    empleadoNombre: string;
-    totalDeducciones: number;
-    cantidad: number;
-  }>
-> {
-  await requireRole("administrador");
-  const supabase = await db();
-
-  const now = new Date();
-  const m = mes ?? now.getMonth() + 1;
-  const a = anio ?? now.getFullYear();
-
-  const fechaInicio = `${a}-${String(m).padStart(2, "0")}-01`;
-  const fechaFin = new Date(a, m, 0).toISOString().split("T")[0];
-
-  const { data, error } = await supabase
-    .from("deducciones_mecanico")
-    .select("empleado_id, costo, moneda_id, empleado:empleados(nombre)")
-    .gte("fecha", fechaInicio)
-    .lte("fecha", fechaFin);
-
-  if (error || !data) return [];
-
-  // Obtener moneda base y tasas vigentes (ordenadas por fecha)
-  const { monedaBase, tasas: tasasMap } = await getMonedaBaseYTasas(supabase);
-
-  const mapa = new Map<string, { empleadoNombre: string; total: number; cantidad: number }>();
-
-  for (const d of data) {
-    const converted = convertir(Number(d.costo), d.moneda_id, monedaBase?.id ?? d.moneda_id, tasasMap);
-    const monto = converted ?? Number(d.costo);
-    const existing = mapa.get(d.empleado_id);
-    if (existing) {
-      existing.total += monto;
-      existing.cantidad += 1;
-    } else {
-      mapa.set(d.empleado_id, {
-        empleadoNombre: (d.empleado as unknown as { nombre: string })?.nombre ?? "Desconocido",
-        total: monto,
-        cantidad: 1,
-      });
-    }
-  }
-
-  return Array.from(mapa.entries())
-    .map(([empleadoId, v]) => ({
-      empleadoId,
-      empleadoNombre: v.empleadoNombre,
-      totalDeducciones: v.total,
-      cantidad: v.cantidad,
-    }))
-    .sort((a, b) => b.totalDeducciones - a.totalDeducciones);
 }

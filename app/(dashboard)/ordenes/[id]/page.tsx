@@ -15,7 +15,7 @@ interface PageProps {
 }
 
 export default async function OrdenDetallePage({ params }: PageProps) {
-  await requireUser();
+  const user = await requireUser();
   const { id } = await params;
   const [orden, repuestos, mecanicos, monedas] = await Promise.all([
     safeQuery(getOrdenById(id), null),
@@ -43,6 +43,7 @@ export default async function OrdenDetallePage({ params }: PageProps) {
       repuestosDisponibles={repuestosDisponibles}
       mecanicos={mecanicos}
       monedas={monedas}
+      esAdmin={user.rol === "administrador"}
     />
   );
 }
