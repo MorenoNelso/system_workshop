@@ -25,7 +25,7 @@ export default async function FacturaDetallePage(props: {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-20">
         <p className="text-sm text-zinc-500">
-          No se pudo cargar la factura. Sin conexión.
+          No se pudo cargar la factura. Verifica tu conexión o que la factura exista.
         </p>
       </div>
     );

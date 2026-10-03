@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { CrudClient } from "@/components/crud/crud-client";
 import type { CrudConfig } from "@/components/crud/types";
-import { updateMoto, deleteMoto } from "@/lib/actions/motos";
+import { deleteMoto } from "@/lib/actions/motos";
 import { executeOrEnqueue } from "@/lib/offline/queue";
 import { crudRoleOverrides, type RolUsuario } from "@/lib/role-utils";
 
@@ -50,7 +50,14 @@ export function MotosClient({ initialRows, clientes, userRole }: Props) {
           return { ok: true };
         },
       },
-      update: { label: "editar", run: (id, r) => updateMoto(id, r) },
+      update: {
+        label: "editar",
+        run: async (id, r) => {
+          const res = await executeOrEnqueue("updateMoto", { id, ...r });
+          if (!res.ok) return { ok: false, error: res.error };
+          return { ok: true };
+        },
+      },
       delete: { label: "eliminar", run: (id) => deleteMoto(id) },
       ...perms,
     }),

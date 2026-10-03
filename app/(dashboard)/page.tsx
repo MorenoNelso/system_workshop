@@ -51,14 +51,28 @@ export default async function DashboardPage() {
 
   const emptyResumen = { recibido: 0, en_proceso: 0, terminado: 0, entregado: 0 };
 
-  const [alertas, resumen, ventasSemanales, ingresosMecanicos, miProduccion] =
+  // safeQuery no distingue "vacío real" de "falló (offline)": para no mostrar
+  // mensajes falsos ("saludable", "no vinculado") se detecta el error aquí.
+  async function intentar<T>(p: Promise<T>, fallback: T): Promise<{ data: T; error: boolean }> {
+    try {
+      return { data: await p, error: false };
+    } catch {
+      return { data: fallback, error: true };
+    }
+  }
+
+  const [alertasR, resumen, ventasSemanales, ingresosMecanicos, miProduccionR] =
     await Promise.all([
-      safeQuery(getAlertasStock()),
+      intentar(getAlertasStock(), []),
       safeQuery(getResumenOrdenes(), emptyResumen),
       safeQuery(esAdmin ? getVentasSemanales(12) : Promise.resolve(null), null),
       safeQuery(esAdmin ? getIngresosPorMecanico() : Promise.resolve(null), null),
-      safeQuery(!esAdmin ? getMiProduccion(user.id) : Promise.resolve(null), null),
+      intentar(!esAdmin ? getMiProduccion(user.id) : Promise.resolve(null), null),
     ]);
+  const alertas = alertasR.data;
+  const alertasError = alertasR.error;
+  const miProduccion = miProduccionR.data;
+  const miProduccionError = miProduccionR.error;
 
   const hoy = new Date().toLocaleDateString("es-CO", {
     weekday: "long",
@@ -88,7 +102,13 @@ export default async function DashboardPage() {
       </div>
 
       {/* Alertas de stock bajo */}
-      {alertas.length > 0 ? (
+      {alertasError ? (
+        <section className="flex items-center gap-2 rounded-2xl border border-zinc-200 bg-zinc-100 p-4">
+          <span className="text-sm font-medium text-zinc-600">
+            Sin conexión: no se pudo verificar el inventario.
+          </span>
+        </section>
+      ) : alertas.length > 0 ? (
         <section className="overflow-hidden rounded-2xl border border-amber-200 bg-white shadow-sm">
           <div className="h-1 w-full bg-amber-400" aria-hidden="true" />
           <div className="p-5">
@@ -393,6 +413,10 @@ export default async function DashboardPage() {
                   )}
                 </div>
               </>
+            ) : miProduccionError ? (
+              <p className="mt-4 rounded-lg bg-zinc-100 p-3 text-sm text-zinc-600">
+                Sin conexión: tu producción se mostrará cuando vuelva internet.
+              </p>
             ) : (
               <p className="mt-4 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
                 Tu usuario no está vinculado a un empleado. Pide al administrador

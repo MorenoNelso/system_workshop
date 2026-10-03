@@ -4,7 +4,6 @@ import { useMemo } from "react";
 import { CrudClient } from "@/components/crud/crud-client";
 import type { CrudConfig } from "@/components/crud/types";
 import {
-  updateCliente,
   deleteCliente,
 } from "@/lib/actions/clientes";
 import { executeOrEnqueue } from "@/lib/offline/queue";
@@ -40,7 +39,14 @@ export function ClientesClient({ initialRows, userRole }: Props) {
           return { ok: true };
         },
       },
-      update: { label: "editar", run: (id, r) => updateCliente(id, r) },
+      update: {
+        label: "editar",
+        run: async (id, r) => {
+          const res = await executeOrEnqueue("updateCliente", { id, ...r });
+          if (!res.ok) return { ok: false, error: res.error };
+          return { ok: true };
+        },
+      },
       delete: { label: "eliminar", run: (id) => deleteCliente(id) },
       ...perms,
     }),

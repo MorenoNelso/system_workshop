@@ -15,6 +15,7 @@ import {
   touch,
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
+import { calcularComision } from "@/lib/comisiones";
 
 const PATH = "/ordenes";
 
@@ -450,18 +451,10 @@ export async function agregarManoObraAOrden(raw: unknown): Promise<ActionResult>
     porcentajeComision = empleado?.porcentaje_comision ?? null;
   }
 
-  // 2. Calcular la comisión: si hay monto_a_pagar, usarlo directamente;
-  //    si no, calcular desde el porcentaje
+  // 2. Calcular la comisión (fuente única: lib/comisiones.ts).
+  //    Monto fijo acordado gana sobre el porcentaje.
   const montoAPagar = parsed.data.monto_a_pagar ?? null;
-  let comisionCalculada: number | null = null;
-
-  if (montoAPagar !== null && montoAPagar !== undefined) {
-    // Monto manual: el mecánico gana lo que se especificó
-    comisionCalculada = montoAPagar;
-  } else if (porcentajeComision !== null && porcentajeComision !== undefined) {
-    // Cálculo automático desde porcentaje
-    comisionCalculada = Number(((monto * porcentajeComision) / 100).toFixed(2));
-  }
+  const comisionCalculada = calcularComision(monto, porcentajeComision, montoAPagar);
 
   // 3. Datos del ayudante (opcional)
   const ayudanteId = parsed.data.ayudante_id ?? null;

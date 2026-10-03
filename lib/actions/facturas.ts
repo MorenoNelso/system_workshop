@@ -16,6 +16,7 @@ import {
   type ActionResult,
 } from "@/lib/actions/_crud-helpers";
 import { rateLimitFactura, rateLimitPago, rateLimitAdmin } from "@/lib/rate-limit";
+import { calcularComision } from "@/lib/comisiones";
 
 const PATH = "/facturas";
 
@@ -574,15 +575,8 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
       ? (empleadosMap.get(s.empleado_id)?.porcentaje_comision ?? null)
       : null);
 
-    // Si se proporciona monto_a_pagar, usarlo directamente; si no, calcular desde %
-    const montoAPagar = s.monto_a_pagar ?? null;
-    let comisionCalculada: number | null = null;
-
-    if (montoAPagar !== null && montoAPagar !== undefined) {
-      comisionCalculada = montoAPagar;
-    } else if (porcentajeComision !== null) {
-      comisionCalculada = Number(((s.monto * porcentajeComision) / 100).toFixed(2));
-    }
+    // Fuente única del cálculo (lib/comisiones.ts): fijo gana sobre %.
+    const comisionCalculada = calcularComision(s.monto, porcentajeComision, s.monto_a_pagar ?? null);
 
     lineas.push({ moneda_id: s.moneda_id, amount: s.monto });
 

@@ -12,7 +12,9 @@ export default async function EmpleadosPage() {
   const esAdmin = user?.rol === "administrador";
   const [empleados, resumen] = await Promise.all([
     safeQuery(esAdmin ? listEmpleados() : listEmpleadosPublicos()),
-    safeQuery(getResumenEmpleados()),
+    // Solo admin: getResumenEmpleados exige requireRole y safeQuery tragaba
+    // el redirect devolviendo [] por accidente. Explícito es mejor.
+    safeQuery(esAdmin ? getResumenEmpleados() : Promise.resolve([]), []),
   ]);
 
   return (

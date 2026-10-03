@@ -57,7 +57,7 @@ Sistema de gestión para un taller de motos pequeño: **1 taller, 1–3 usuarios
 | Inventario (Kardex) | ✅ Full | ✅ Solo ver | Página read-only |
 | Proveedores | ✅ Full | ❌ No accede | `requireRole("administrador")` |
 | Categorías | ✅ Full | ❌ No accede | `requireRole("administrador")` |
-| Empleados | ✅ Full | ✅ Ver (sin crear/editar) | `hideCreate + hideDelete: !isAdmin` |
+| Empleados | ✅ Full | ✅ Ver (sin crear/editar) | `hideCreate + hideEdit + hideDelete: !isAdmin` |
 | Facturas | ✅ Full | ✅ Ver + crear/cobrar (sin anular ni eliminar) | `hideDelete` + solo admin anula |
 | Órdenes | ✅ Full | ✅ Full | Permisos por estado |
 | Dashboard | ✅ Todo taller | ✅ "Mi producción" del mes + deducciones + neta | Filtro por rol en server |

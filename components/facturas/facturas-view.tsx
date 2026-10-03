@@ -162,7 +162,7 @@ export function FacturasView({
     enviandoRef.current = false;
 
     if (!res.ok) {
-      setError(res.error ?? "Error desconocido");
+      setError(res.error ?? "No se pudo generar la factura. Revisa los datos e intenta de nuevo.");
       return;
     }
 
@@ -295,7 +295,7 @@ export function FacturasView({
     enviandoRef.current = false;
 
     if (!res.ok) {
-      setErrorCliente(res.error ?? "Error desconocido");
+      setErrorCliente(res.error ?? "No se pudo guardar el cliente. Verifica los datos e intenta de nuevo.");
       return;
     }
 
@@ -401,7 +401,7 @@ export function FacturasView({
     enviandoRef.current = false;
 
     if (!res.ok) {
-      setErrorRapida(res.error ?? "Error desconocido");
+      setErrorRapida(res.error ?? "No se pudo generar la venta. Revisa los datos e intenta de nuevo.");
       return;
     }
 

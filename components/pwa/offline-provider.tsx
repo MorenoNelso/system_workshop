@@ -3,8 +3,8 @@
 import { useEffect } from "react";
 import { registerActionHandler } from "@/lib/offline/queue";
 import { createFactura, createFacturaDirecta, registrarPago } from "@/lib/actions/facturas";
-import { createCliente } from "@/lib/actions/clientes";
-import { createMoto } from "@/lib/actions/motos";
+import { createCliente, updateCliente } from "@/lib/actions/clientes";
+import { createMoto, updateMoto } from "@/lib/actions/motos";
 import { createRepuesto } from "@/lib/actions/repuestos";
 import { createProveedor } from "@/lib/actions/proveedores";
 import { createCategoria } from "@/lib/actions/categorias";
@@ -50,8 +50,20 @@ export function OfflineProvider({ children }: { children: React.ReactNode }) {
       return result;
     });
 
+    registerActionHandler("updateCliente", async (data) => {
+      const { id, ...rest } = data as Record<string, unknown> & { id: string };
+      const result = await updateCliente(id, rest);
+      return result;
+    });
+
     registerActionHandler("createMoto", async (data) => {
       const result = await createMoto(data);
+      return result;
+    });
+
+    registerActionHandler("updateMoto", async (data) => {
+      const { id, ...rest } = data as Record<string, unknown> & { id: string };
+      const result = await updateMoto(id, rest);
       return result;
     });
 

@@ -72,7 +72,9 @@ export function EmpleadosClient({ initialRows, resumen, userRole }: Props) {
           visible: false,
           get: (row) => {
             const r = resumenMap[row.id as string];
-            if (!r) return "$0.00";
+            // "—" y no "$0.00": sin entrada no se sabe si es cero real
+            // (empleado sin trabajos) o dato no cargado (colaborador).
+            if (!r) return "—";
             return `$${r.total_ganado.toFixed(2)}`;
           },
         },
