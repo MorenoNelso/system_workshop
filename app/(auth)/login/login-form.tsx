@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useActionState } from "react";
 
 import { login, verificarMfa, type LoginState } from "@/lib/actions/auth";
+import { RECUPERACION_HABILITADA } from "@/lib/auth/recuperacion";
 
 const inputClass =
   "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-brand-600 focus:ring-2 focus:ring-brand-100 disabled:opacity-60";
@@ -145,12 +146,18 @@ export function LoginForm({
       </div>
 
       <div className="mt-1 text-center">
-        <Link
-          href="/recuperar"
-          className="text-xs text-zinc-500 underline-offset-4 hover:text-brand-700 hover:underline"
-        >
-          ¿Olvidaste tu contraseña?
-        </Link>
+        {RECUPERACION_HABILITADA ? (
+          <Link
+            href="/recuperar"
+            className="text-xs text-zinc-500 underline-offset-4 hover:text-brand-700 hover:underline"
+          >
+            ¿Olvidaste tu contraseña?
+          </Link>
+        ) : (
+          <p className="text-xs text-zinc-500">
+            ¿Problemas para entrar? Contacta al administrador.
+          </p>
+        )}
       </div>
     </form>
   );

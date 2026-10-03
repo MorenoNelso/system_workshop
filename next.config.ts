@@ -25,7 +25,8 @@ const securityHeaders = [
   },
   {
     key: "Permissions-Policy",
-    value: "camera=(), microphone=(), geolocation=(), browsing-topics()",
+    // Sin browsing-topics: Chrome eliminó esa directiva y su parseo falla.
+    value: "camera=(), microphone=(), geolocation=()",
   },
   ...(!isDev
     ? [

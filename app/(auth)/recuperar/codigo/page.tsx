@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
 
+import { RECUPERACION_HABILITADA } from "@/lib/auth/recuperacion";
 import { CodigoForm } from "./codigo-form";
 
 export const metadata: Metadata = {
@@ -10,6 +12,8 @@ export const metadata: Metadata = {
 export const instant = false;
 
 export default async function CodigoPage(props: PageProps<"/recuperar/codigo">) {
+  // Flujo apagado (ver lib/auth/recuperacion.ts): ni por URL directa.
+  if (!RECUPERACION_HABILITADA) redirect("/login");
   const search = await props.searchParams;
   const email =
     typeof search?.email === "string" ? search.email : "";

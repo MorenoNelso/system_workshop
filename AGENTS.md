@@ -218,8 +218,8 @@ Paleta oficial **Pacho Motos** (definida en `app/globals.css` como tokens `brand
 
 ## Pendientes para el despliegue (Fase 8)
 
-- **SMTP del cliente** (correo de recuperación de contraseña): configurar en Supabase → Authentication → SMTP con el Gmail **del cliente** (app password). Hoy usa el SMTP default de Supabase (límite 2 correos/hora, remitente de Supabase).
-- **Verificar template de email OTP** en Supabase → Email Templates: debe mostrar `{{ .Token }}` (código numérico).
+- **Recuperación de contraseña APAGADA por decisión del taller** (2 usuarios, recuperación manual vía Supabase): flag `NEXT_PUBLIC_ENABLE_PASSWORD_RECOVERY=false` (ver `lib/auth/recuperacion.ts`). El link no se muestra en login y `/recuperar` redirige a `/login`. Para encender: SMTP propio + template con `{{ .Token }}` (el SMTP gratuito de Supabase no permite editar plantillas, su default es solo-link).
+- **SMTP del cliente** (solo si se enciende la recuperación): configurar en Supabase → Authentication → SMTP con el Gmail **del cliente** (app password). Hoy usa el SMTP default de Supabase (límite 2 correos/hora, remitente de Supabase).
 - **Limpieza de `docs/`**: mover SQLs y manuales sensibles fuera del repo antes de subir a Netlify.
 - **Backup de la BD** antes del despliegue.
 - **Plan Supabase**: Free tier por ahora (1-3 usuarios). Migrar a Starter/Pro cuando la BD crezca o se necesiten features premium.
