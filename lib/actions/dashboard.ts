@@ -110,6 +110,12 @@ async function getMonedasYBase(supabase: Awaited<ReturnType<typeof createClient>
     .select("*")
     .order("codigo");
   const monedas = (data ?? []) as unknown as MonedaBase[];
+  // Sin monedas no hay base para convertir: fallar con mensaje claro en vez
+  // de TypeError en `monedas[0].id`. Requiere el seed inicial (ver
+  // supabase/migrations/20260930_bootstrap_inicial.sql).
+  if (monedas.length === 0) {
+    throw new Error("No hay monedas configuradas. Registra COP, USD y VES antes de operar.");
+  }
   return monedas;
 }
 

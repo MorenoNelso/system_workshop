@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CrudClient } from "@/components/crud/crud-client";
 import type { CrudConfig } from "@/components/crud/types";
 import {
@@ -170,15 +170,19 @@ export function RepuestosClient({
     [categorias, proveedores, monedas, perms, isAdmin],
   );
 
+  // Guard contra doble envío: una entrada duplicada infla el stock real.
+  const enviandoRef = useRef(false);
+
   async function guardarEntrada(e: React.FormEvent) {
     e.preventDefault();
-    if (!entradaRepuesto) return;
+    if (!entradaRepuesto || enviandoRef.current) return;
     const id = String(entradaRepuesto.id);
     const cant = Number(cantidad);
     if (!Number.isInteger(cant) || cant <= 0) {
       setError("La cantidad debe ser un número entero mayor a 0.");
       return;
     }
+    enviandoRef.current = true;
     setGuardando(true);
     setError(null);
     const res = await registrarMovimiento({
@@ -188,6 +192,7 @@ export function RepuestosClient({
       motivo: motivo.trim() || "Entrada de inventario",
     });
     setGuardando(false);
+    enviandoRef.current = false;
     if (!res.ok) {
       setError(res.error);
       return;

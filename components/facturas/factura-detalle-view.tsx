@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -92,8 +92,13 @@ export function FacturaDetalleView({
     setMontoPago(eq === null || eq === undefined ? "" : eq.toFixed(2));
   }
 
+  // Guard contra doble envío (doble Enter/tap): un pago duplicado sí mueve dinero.
+  const enviandoRef = useRef(false);
+
   async function handlePagar(e: React.FormEvent) {
     e.preventDefault();
+    if (enviandoRef.current) return;
+    enviandoRef.current = true;
     setGuardando(true);
     setError(null);
 
@@ -104,6 +109,7 @@ export function FacturaDetalleView({
       metodo_pago: metodoPago,
     });
     setGuardando(false);
+    enviandoRef.current = false;
 
     if ("offline" in res && res.offline) {
       // Se cierra el modal para que no se reintente y duplique el pago al sincronizar
@@ -122,7 +128,7 @@ export function FacturaDetalleView({
 
   async function handleAnular(e: React.FormEvent) {
     e.preventDefault();
-    if (guardando) return;
+    if (guardando || enviandoRef.current) return;
     const motivo = motivoAnular.trim();
     if (esPagada && !motivo) {
       setError("Para anular una factura pagada indica el motivo de la anulación.");
@@ -136,10 +142,12 @@ export function FacturaDetalleView({
       )
     )
       return;
+    enviandoRef.current = true;
     setGuardando(true);
     setError(null);
     const res = await anularFactura(factura.id, esPagada ? motivo : undefined);
     setGuardando(false);
+    enviandoRef.current = false;
     if (!res.ok) {
       setError(res.error);
       return;

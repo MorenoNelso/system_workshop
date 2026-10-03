@@ -123,6 +123,7 @@ export function OrdenDetalleView({
   // dos submits en el mismo tick, el ref sí.
   const enviandoRepuestoRef = useRef(false);
   const enviandoMORef = useRef(false);
+  const enviandoVariosRef = useRef(false);
 
   // Cuando cambia el mecánico seleccionado, sugerir su % y volver al modo %
   const handleMecanicoChange = (id: string) => {
@@ -141,9 +142,12 @@ export function OrdenDetalleView({
 
   // Cambiar estado de la orden
   async function handleCambioEstado(nuevoEstado: "recibido" | "en_proceso" | "terminado" | "entregado") {
+    if (enviandoVariosRef.current) return;
+    enviandoVariosRef.current = true;
     setCambiandoEstado(true);
     const res = await executeOrEnqueue("updateEstadoOrden", { orden_id: orden.id, nuevo_estado: nuevoEstado });
     setCambiandoEstado(false);
+    enviandoVariosRef.current = false;
     if ("offline" in res && res.offline) {
       setErrorEstado("Sin conexión. Se guardará cuando vuelva internet.");
       setEstado(nuevoEstado);
@@ -201,7 +205,10 @@ export function OrdenDetalleView({
     if (!confirm(`¿Eliminar '${nombreRep}' de la orden? El stock será devuelto automáticamente al inventario.`)) {
       return;
     }
+    if (enviandoVariosRef.current) return;
+    enviandoVariosRef.current = true;
     const res = await executeOrEnqueue("eliminarRepuestoDeOrden", { detalle_id: detalleId, orden_id: orden.id });
+    enviandoVariosRef.current = false;
     if ("offline" in res && res.offline) {
       setErrorRepuesto("Sin conexión. Se guardará cuando vuelva internet.");
       return;
@@ -287,7 +294,10 @@ export function OrdenDetalleView({
   // Eliminar Mano de Obra
   async function handleEliminarManoObra(detalleId: string) {
     if (!confirm("¿Eliminar este ítem de mano de obra?")) return;
+    if (enviandoVariosRef.current) return;
+    enviandoVariosRef.current = true;
     const res = await executeOrEnqueue("eliminarManoObraDeOrden", { detalle_id: detalleId, orden_id: orden.id });
+    enviandoVariosRef.current = false;
     if ("offline" in res && res.offline) {
       setErrorMO("Sin conexión. Se guardará cuando vuelva internet.");
       return;

@@ -271,11 +271,12 @@ export function FacturasView({
 
   async function handleCrearCliente(e: React.FormEvent) {
     e.preventDefault();
-    if (guardandoCliente) return;
+    if (guardandoCliente || enviandoRef.current) return;
     if (!nuevoNombre.trim() || !nuevoTelefono.trim()) {
       setErrorCliente("El nombre y el teléfono son obligatorios.");
       return;
     }
+    enviandoRef.current = true;
     setGuardandoCliente(true);
     setErrorCliente(null);
 
@@ -291,6 +292,7 @@ export function FacturasView({
       direccion: nuevoDireccion || null,
     });
     setGuardandoCliente(false);
+    enviandoRef.current = false;
 
     if (!res.ok) {
       setErrorCliente(res.error ?? "Error desconocido");
