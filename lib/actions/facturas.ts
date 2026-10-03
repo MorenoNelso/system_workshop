@@ -132,13 +132,14 @@ export async function listOrdenesFacturables(): Promise<OrdenFacturable[]> {
   const { data: ordenes } = await supabase
     .from("ordenes_servicio")
     .select(
-      "*, cliente:clientes(nombre, telefono), moto:motos(marca, modelo, placa), factura:facturas(id)",
+      "*, cliente:clientes(nombre, telefono), moto:motos(marca, modelo, placa), factura:facturas(id, estado_pago)",
     )
     .in("estado", ESTADOS_FACTURABLES)
     .order("fecha_ingreso", { ascending: false });
 
+  // Solo cuentan facturas activas: una orden anulada vuelve a facturable.
   const facturables = (ordenes ?? []).filter(
-    (o) => !o.factura || o.factura.length === 0,
+    (o) => !ordenYaTieneFactura(o.factura),
   );
 
   // Batch: 2 queries en vez de 2N
@@ -356,7 +357,7 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
 
   const { data: orden, error: ordErr } = await supabase
     .from("ordenes_servicio")
-    .select("*, factura:facturas(id)")
+    .select("*, factura:facturas(id, estado_pago)")
     .eq("id", orden_id)
     .single();
 
@@ -370,7 +371,7 @@ export async function createFactura(raw: unknown): Promise<ActionResult> {
     };
   }
   if (ordenYaTieneFactura(orden.factura)) {
-    return { ok: false, error: "Esta orden ya tiene una factura asociada." };
+    return { ok: false, error: "Esta orden ya tiene una factura activa asociada." };
   }
 
   const [{ data: repuestos }, { data: manoObra }] = await Promise.all([

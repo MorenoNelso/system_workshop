@@ -3,15 +3,25 @@
  */
 
 /**
- * Indica si una orden ya tiene una factura asociada.
+ * Indica si una orden ya tiene una factura ACTIVA asociada.
+ *
+ * Las facturas `anulada` no cuentan: anular libera la orden para
+ * refacturar (índice parcial `idx_facturas_orden_activa`). Un objeto sin
+ * `estado_pago` se asume activo (compatibilidad con llamados viejos).
  *
  * Supabase devuelve una relación 1:1 como array `[]` cuando no hay fila,
  * o `null` si no se pidió la relación. Esta función normaliza ambos casos.
  */
 export function ordenYaTieneFactura(factura: unknown): boolean {
   if (factura === null || factura === undefined) return false;
-  if (Array.isArray(factura)) return factura.length > 0;
-  return Boolean(factura);
+  const filas = Array.isArray(factura) ? factura : [factura];
+  if (filas.length === 0) return false;
+  return filas.some((f) => {
+    if (f === null || f === undefined || typeof f !== "object") return true;
+    const estado = (f as { estado_pago?: unknown }).estado_pago;
+    // Sin estado conocido se asume activa (no bloquear por defecto).
+    return estado === undefined || estado !== "anulada";
+  });
 }
 
 /**

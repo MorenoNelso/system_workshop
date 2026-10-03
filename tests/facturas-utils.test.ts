@@ -14,6 +14,19 @@ describe("ordenYaTieneFactura", () => {
   it("false cuando el array está vacío", () => expect(ordenYaTieneFactura([])).toBe(false));
   it("true cuando el array tiene items", () => expect(ordenYaTieneFactura([{ id: "1" }])).toBe(true));
   it("true cuando es un objeto", () => expect(ordenYaTieneFactura({ id: "1" })).toBe(true));
+  it("false si la única factura está anulada (libera refacturación)", () =>
+    expect(ordenYaTieneFactura([{ id: "1", estado_pago: "anulada" }])).toBe(false));
+  it("true si hay una activa entre anuladas", () =>
+    expect(
+      ordenYaTieneFactura([
+        { id: "1", estado_pago: "anulada" },
+        { id: "2", estado_pago: "pagada" },
+      ]),
+    ).toBe(true));
+  it("true si el estado es pendiente o pagada", () => {
+    expect(ordenYaTieneFactura([{ id: "1", estado_pago: "pendiente" }])).toBe(true);
+    expect(ordenYaTieneFactura({ id: "1", estado_pago: "pagada" })).toBe(true);
+  });
 });
 
 describe("ordenEsFacturable", () => {
