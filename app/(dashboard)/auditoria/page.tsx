@@ -30,7 +30,7 @@ export default async function AuditoriaPage(props: {
       desde: typeof search.desde === "string" ? search.desde : undefined,
       hasta: typeof search.hasta === "string" ? search.hasta : undefined,
       pagina: typeof search.pagina === "string" ? Number(search.pagina) : undefined,
-    }), { logs: [], total: 0, pagina: 1, totalPaginas: 0 }),
+    }), { logs: [], total: 0, pagina: 1, totalPaginas: 0, nombres: { clientes: {}, facturas: {}, monedas: {} } }),
   ]);
 
   return (
@@ -51,6 +51,7 @@ export default async function AuditoriaPage(props: {
         pagina={result.pagina}
         totalPaginas={result.totalPaginas}
         usuarios={(usuarios ?? []) as { id: string; nombre: string }[]}
+        nombres={result.nombres}
       />
     </div>
   );

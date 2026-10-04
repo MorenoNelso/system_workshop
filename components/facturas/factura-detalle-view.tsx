@@ -32,6 +32,12 @@ function EstadoBadge({ estado }: { estado: string }) {
           Pendiente
         </span>
       );
+    case "cuotas":
+      return (
+        <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-800">
+          En cuotas
+        </span>
+      );
     case "pagada":
       return (
         <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-800">
@@ -126,18 +132,20 @@ export function FacturaDetalleView({
     router.refresh();
   }
 
+  const conCobros = esPagada || factura.estado_pago === "cuotas";
+
   async function handleAnular(e: React.FormEvent) {
     e.preventDefault();
     if (guardando || enviandoRef.current) return;
     const motivo = motivoAnular.trim();
-    if (esPagada && !motivo) {
-      setError("Para anular una factura pagada indica el motivo de la anulación.");
+    if (conCobros && !motivo) {
+      setError("Para anular una factura con cobros indica el motivo de la anulación.");
       return;
     }
     if (
       !confirm(
-        esPagada
-          ? `¿Anular la factura pagada por ${monedaSimbolo} ${Number(factura.total).toFixed(2)}? Se reversará el pago y quedará registrada como anulada. El efectivo debe devolverse a mano.`
+        conCobros
+          ? `¿Anular la factura por ${monedaSimbolo} ${Number(factura.total).toFixed(2)}? Se reversarán los cobros y quedará registrada como anulada. El efectivo debe devolverse a mano.`
           : "¿Anular esta factura? No podrá cobrarse después.",
       )
     )
@@ -145,7 +153,7 @@ export function FacturaDetalleView({
     enviandoRef.current = true;
     setGuardando(true);
     setError(null);
-    const res = await anularFactura(factura.id, esPagada ? motivo : undefined);
+    const res = await anularFactura(factura.id, conCobros ? motivo : undefined);
     setGuardando(false);
     enviandoRef.current = false;
     if (!res.ok) {
@@ -215,7 +223,9 @@ export function FacturaDetalleView({
         </div>
 
         {/* Acciones por estado (anular: solo admin, el servidor también lo exige) */}
-        {(factura.estado_pago === "pendiente" || factura.estado_pago === "pagada") && (
+        {(factura.estado_pago === "pendiente" ||
+          factura.estado_pago === "cuotas" ||
+          factura.estado_pago === "pagada") && (
           <div className="flex items-center gap-2">
             {esAdmin && (
               <button
@@ -231,16 +241,18 @@ export function FacturaDetalleView({
                 Anular
               </button>
             )}
-            {factura.estado_pago === "pendiente" && (
+            {(factura.estado_pago === "pendiente" || factura.estado_pago === "cuotas") && (
               <button
                 type="button"
                 onClick={() => {
                   setError(null);
+                  // Prefijar el saldo pendiente (no el total) al abrir.
+                  setMontoPago(Number(factura.saldo_pendiente).toFixed(2));
                   setModalPago(true);
                 }}
                 className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 active:scale-[0.98]"
               >
-                Registrar Pago
+                {factura.estado_pago === "cuotas" ? "Registrar Abono" : "Registrar Pago"}
               </button>
             )}
           </div>
@@ -568,10 +580,15 @@ export function FacturaDetalleView({
           <div className="w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-white shadow-xl">
             <div className="px-6 pt-5 pb-3">
               <h3 className="text-base font-semibold text-zinc-900">
-                Registrar pago completo
+                {factura.estado_pago === "cuotas" ? "Registrar abono" : "Registrar pago"}
               </h3>
               <p className="text-xs text-zinc-500">
-                Sin abonos: el pago debe cubrir el total congelado de la factura.
+                Saldo pendiente:{" "}
+                <span className="font-bold text-zinc-900">
+                  {monedaSimbolo} {Number(factura.saldo_pendiente).toFixed(2)}
+                </span>{" "}
+                de {monedaSimbolo} {Number(factura.total).toFixed(2)}. Se aceptan
+                abonos parciales; al cubrir el saldo queda pagada.
               </p>
             </div>
 
@@ -666,14 +683,14 @@ export function FacturaDetalleView({
                 Anular factura #{String(factura.numero_consecutivo).padStart(6, "0")}
               </h3>
               <p className="text-xs text-zinc-500">
-                {esPagada
-                  ? "Está pagada: se reversará el pago y quedará registrada como anulada. El efectivo debe devolverse a mano."
+                {conCobros
+                  ? "Tiene cobros: se reversarán y quedará registrada como anulada. El efectivo debe devolverse a mano."
                   : "No podrá cobrarse después."}
               </p>
             </div>
 
             <form onSubmit={handleAnular} className="space-y-4 px-6 py-4">
-              {esPagada && (
+              {conCobros && (
                 <div>
                   <label className="text-xs font-medium text-zinc-700">
                     Motivo de la anulación <span className="text-red-500">*</span>
@@ -699,7 +716,7 @@ export function FacturaDetalleView({
                 </button>
                 <button
                   type="submit"
-                  disabled={guardando || (esPagada && !motivoAnular.trim())}
+                  disabled={guardando || (conCobros && !motivoAnular.trim())}
                   className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-red-700 active:scale-[0.98] disabled:opacity-60"
                 >
                   {guardando ? "Anulando..." : "Sí, anular"}

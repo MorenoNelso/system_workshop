@@ -5,6 +5,7 @@ import {
   ordenEsFacturable,
   esErrorFacturaDuplicada,
   calcularGanancia,
+  aplicarAbono,
   ESTADOS_FACTURABLES,
 } from "@/lib/facturas-utils";
 
@@ -82,5 +83,35 @@ describe("calcularGanancia", () => {
     expect(result.ingreso).toBe(100);
     expect(result.egreso).toBe(0);
     expect(result.ganancia).toBe(100);
+  });
+});
+
+describe("aplicarAbono", () => {
+  it("pago parcial deja cuotas con saldo", () => {
+    expect(aplicarAbono(100000, 0, 40000)).toEqual({
+      estado: "cuotas",
+      cobrado: 40000,
+      saldoRestante: 60000,
+    });
+  });
+
+  it("segundo abono que cubre deja pagada en 0", () => {
+    expect(aplicarAbono(100000, 40000, 60000)).toEqual({
+      estado: "pagada",
+      cobrado: 100000,
+      saldoRestante: 0,
+    });
+  });
+
+  it("pago completo de una vez deja pagada", () => {
+    expect(aplicarAbono(100000, 0, 100000)).toEqual({
+      estado: "pagada",
+      cobrado: 100000,
+      saldoRestante: 0,
+    });
+  });
+
+  it("tolerancia de centavos por conversión", () => {
+    expect(aplicarAbono(100000, 0, 99999.999).estado).toBe("pagada");
   });
 });

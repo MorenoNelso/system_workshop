@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { describirCambio, etiquetaTabla } from "@/lib/auditoria-utils";
+import { describirCambio, etiquetaTabla, type AuditoriaCtx } from "@/lib/auditoria-utils";
 import type { LogAuditoria } from "@/lib/actions/auditoria";
 
 const ACCIONES = [
@@ -21,6 +21,7 @@ interface Props {
   pagina: number;
   totalPaginas: number;
   usuarios: { id: string; nombre: string }[];
+  nombres?: AuditoriaCtx;
 }
 
 export function AuditoriaView({
@@ -29,6 +30,7 @@ export function AuditoriaView({
   pagina,
   totalPaginas,
   usuarios,
+  nombres,
 }: Props) {
   const router = useRouter();
   const [usuario, setUsuario] = useState("");
@@ -158,7 +160,7 @@ export function AuditoriaView({
                       </span>
                     </td>
                     <td className="px-4 py-3 text-xs text-zinc-600">
-                      {describirCambio(l)}
+                      {describirCambio(l, nombres)}
                     </td>
                   </tr>
                 ))

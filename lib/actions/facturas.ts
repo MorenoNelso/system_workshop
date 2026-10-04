@@ -3,6 +3,8 @@
 import { requireRole } from "@/lib/auth/session";
 import { convertir, getTasasVigentes } from "@/lib/currency";
 import {
+  aplicarAbono,
+  EPS_COBRO,
   esErrorFacturaDuplicada,
   ESTADOS_FACTURABLES,
   ordenEsFacturable,
@@ -52,7 +54,7 @@ export interface FacturaRow {
   total: number;
   moneda_id: string;
   tasa_aplicada: number | null;
-  estado_pago: "pendiente" | "pagada" | "anulada";
+  estado_pago: "pendiente" | "cuotas" | "pagada" | "anulada";
   fecha_emision: string;
   cliente: ClienteRef | null;
   moneda: MonedaRef | null;
@@ -108,6 +110,10 @@ export interface FacturaDetail extends FacturaRow {
   repuestos: RepuestoDetalle[];
   mano_obra: ManoObraDetalle[];
   pagos: PagoRow[] | null;
+  /** Cobrado acumulado convertido a la moneda de la factura. */
+  cobrado: number;
+  /** Saldo pendiente en la moneda de la factura (0 si pagada). */
+  saldo_pendiente: number;
 }
 
 /** Lista las facturas con datos del cliente, orden y moneda. */
@@ -327,10 +333,28 @@ export async function getFacturaById(id: string): Promise<FacturaDetail | null> 
     ayudante: m.ayudante_id ? { nombre: empMap[m.ayudante_id] ?? null } : null,
   }));
 
+  // Cobrado acumulado y saldo en la moneda de la factura (para abonos).
+  // Si algún pago no convierte (sin tasa), se ignora en el cobrado: el saldo
+  // mostrado puede quedar alto, nunca bajo (no se regala plata).
+  let cobrado = 0;
+  try {
+    const tasasDetalle = await getTasasVigentes(supabase);
+    for (const p of ((f as unknown as { pagos?: PagoRow[] }).pagos ?? [])) {
+      const conv = convertir(Number(p.monto), p.moneda_id, f.moneda_id, tasasDetalle);
+      if (conv !== null) cobrado += conv;
+    }
+  } catch {
+    cobrado = 0;
+  }
+  cobrado = Number(cobrado.toFixed(2));
+  const saldo_pendiente = Number(Math.max(0, Number(f.total) - cobrado).toFixed(2));
+
   return {
     ...f,
     repuestos,
     mano_obra,
+    cobrado,
+    saldo_pendiente,
   };
 }
 
@@ -679,8 +703,10 @@ export async function createFacturaDirecta(raw: unknown): Promise<ActionResult> 
 }
 
 /**
- * Registra el pago TOTAL de una factura (sin abonos). Valida que el monto
- * pagado, convertido a la moneda de la factura, cubra el total congelado.
+ * Registra un pago o abono (cuota) de una factura. El taller fía: el monto
+ * puede cubrir solo parte del total. No hay mínimo por abono (se acuerda
+ * verbal), pero debe ser mayor a 0 y no superar el saldo pendiente.
+ * - Cubre el saldo → `pagada`. - Si no → `cuotas` ("En cuotas").
  */
 export async function registrarPago(raw: unknown): Promise<ActionResult> {
   const user = await requireRole("administrador", "colaborador");
@@ -693,6 +719,9 @@ export async function registrarPago(raw: unknown): Promise<ActionResult> {
   if (!parsed.ok) return parsed;
 
   const { factura_id, monto, moneda_id, metodo_pago } = parsed.data;
+  if (!(monto > 0)) {
+    return { ok: false, error: "El abono debe ser mayor a 0." };
+  }
   const supabase = await db();
 
   const { data: factura, error: fErr } = await supabase
@@ -710,25 +739,45 @@ export async function registrarPago(raw: unknown): Promise<ActionResult> {
     return { ok: false, error: "Esta factura ya está pagada." };
   }
 
-  // Sin abonos: validar que el pago cubra el total congelado.
   const tasas = await getTasasVigentes(supabase);
-  const pagadoEnMonedaFactura = convertir(
-    monto,
-    moneda_id,
-    factura.moneda_id,
-    tasas,
-  );
-  if (pagadoEnMonedaFactura === null) {
+
+  // Abonos previos convertidos a la moneda de la factura.
+  const { data: pagosPrevios } = await supabase
+    .from("pagos")
+    .select("monto, moneda_id")
+    .eq("factura_id", factura_id);
+
+  let cobradoPrevio = 0;
+  for (const p of pagosPrevios ?? []) {
+    const conv = convertir(Number(p.monto), p.moneda_id, factura.moneda_id, tasas);
+    if (conv === null) {
+      return {
+        ok: false,
+        error:
+          "No hay tasa de cambio vigente para un abono anterior. Regístrala en Tasas de Cambio.",
+      };
+    }
+    cobradoPrevio += conv;
+  }
+  const saldo = Number(factura.total) - cobradoPrevio;
+  if (saldo <= EPS_COBRO) {
+    // Inconsistencia defensiva: ya está cubierta pero el estado no es pagada.
+    await supabase.from("facturas").update({ estado_pago: "pagada" }).eq("id", factura_id);
+    return { ok: false, error: "Esta factura ya está pagada." };
+  }
+
+  const pagoConvertido = convertir(monto, moneda_id, factura.moneda_id, tasas);
+  if (pagoConvertido === null) {
     return {
       ok: false,
       error:
         "No hay tasa de cambio vigente para esa moneda. Regístrala en Tasas de Cambio.",
     };
   }
-  if (pagadoEnMonedaFactura < factura.total - 0.01) {
+  if (pagoConvertido > saldo + EPS_COBRO) {
     return {
       ok: false,
-      error: "El pago no cubre el total de la factura. Solo se aceptan pagos completos.",
+      error: `El monto supera el saldo pendiente de ${saldo.toFixed(2)}. Ajusta el valor.`,
     };
   }
 
@@ -742,9 +791,12 @@ export async function registrarPago(raw: unknown): Promise<ActionResult> {
     return { ok: false, error: friendlyDbError("registrar el pago") };
   }
 
+  // Fuente única del nuevo estado (lib/facturas-utils.ts).
+  const resultado = aplicarAbono(Number(factura.total), cobradoPrevio, pagoConvertido);
+
   const { error: upErr } = await supabase
     .from("facturas")
-    .update({ estado_pago: "pagada" })
+    .update({ estado_pago: resultado.estado })
     .eq("id", factura_id);
   if (upErr) {
     return { ok: false, error: friendlyDbError("actualizar el estado de la factura") };
@@ -752,7 +804,7 @@ export async function registrarPago(raw: unknown): Promise<ActionResult> {
 
   touch(PATH);
   touch(`${PATH}/${factura_id}`);
-  return { ok: true };
+  return { ok: true, data: { estado: resultado.estado, saldo: resultado.saldoRestante } };
 }
 
 /**
@@ -791,7 +843,7 @@ export async function anularFactura(id: string, motivo?: string): Promise<Action
       return { ok: false, error: "La factura no existe." };
     }
     if (msg.includes("indica el motivo")) {
-      return { ok: false, error: "Para anular una factura pagada indica el motivo de la anulación." };
+      return { ok: false, error: "Para anular una factura con cobros indica el motivo de la anulación." };
     }
     if (msg.includes("Solo el administrador")) {
       return { ok: false, error: "No tienes permiso para anular facturas." };

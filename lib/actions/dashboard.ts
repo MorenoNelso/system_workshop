@@ -354,15 +354,32 @@ export async function getVentasPorRango(
 
   const { data } = await supabase
     .from("facturas")
-    .select("total, moneda_id, estado_pago")
+    .select("id, total, moneda_id, estado_pago")
     .gte("fecha_emision", inicio.toISOString())
     .lte("fecha_emision", fin.toISOString());
 
   const filas = (data ?? []) as unknown as {
+    id: string;
     total: number;
     moneda_id: string;
-    estado_pago: "pendiente" | "pagada" | "anulada";
+    estado_pago: "pendiente" | "cuotas" | "pagada" | "anulada";
   }[];
+
+  // Cobrado real = suma de pagos (las cuotas aportan parcial).
+  const idsVigentes = filas.filter((f) => f.estado_pago !== "anulada").map((f) => f.id);
+  const cobradoPorFactura: Record<string, number> = {};
+  if (idsVigentes.length > 0) {
+    const { data: pagos } = await supabase
+      .from("pagos")
+      .select("factura_id, monto, moneda_id")
+      .in("factura_id", idsVigentes);
+    for (const p of pagos ?? []) {
+      const fid = p.factura_id as string;
+      const convPago = convertir(Number(p.monto), p.moneda_id as string, monedaBase.id, tasas);
+      if (convPago === null) continue;
+      cobradoPorFactura[fid] = (cobradoPorFactura[fid] ?? 0) + convPago;
+    }
+  }
 
   let totalFacturado = 0;
   let totalCobrado = 0;
@@ -374,8 +391,8 @@ export async function getVentasPorRango(
     const conv = convertir(Number(f.total), f.moneda_id, monedaBase.id, tasas);
     if (conv === null) continue;
     totalFacturado += conv;
+    totalCobrado += cobradoPorFactura[f.id] ?? 0;
     if (f.estado_pago === "pagada") {
-      totalCobrado += conv;
       pagadas += 1;
     } else {
       pendientes += 1;

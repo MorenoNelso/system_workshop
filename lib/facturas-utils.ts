@@ -57,6 +57,28 @@ export interface LineaGananciaManoObra {
   comision: number | null;
 }
 
+/** Tolerancia de centavos al comparar montos convertidos. */
+export const EPS_COBRO = 0.01;
+
+/**
+ * Aplica un abono al saldo de una factura (todo en la misma moneda).
+ * - Si cubre el saldo (con tolerancia) → `pagada`, resto 0.
+ * - Si no → `cuotas`, con el saldo restante.
+ * Fuente única usada por `registrarPago` y cubierta por tests.
+ */
+export function aplicarAbono(
+  total: number,
+  cobradoPrevio: number,
+  pago: number,
+): { estado: "cuotas" | "pagada"; cobrado: number; saldoRestante: number } {
+  const cobrado = Number((cobradoPrevio + pago).toFixed(2));
+  const saldoRestante = Number(Math.max(0, total - cobrado).toFixed(2));
+  if (saldoRestante <= EPS_COBRO) {
+    return { estado: "pagada", cobrado, saldoRestante: 0 };
+  }
+  return { estado: "cuotas", cobrado, saldoRestante };
+}
+
 /**
  * Calcula la ganancia de una venta:
  * ingreso = venta de repuestos + mano de obra

@@ -50,6 +50,7 @@ interface Props {
 const ESTADOS = [
   { id: "todas", label: "Todas" },
   { id: "pendiente", label: "Pendientes" },
+  { id: "cuotas", label: "En cuotas" },
   { id: "pagada", label: "Pagadas" },
   { id: "anulada", label: "Anuladas" },
 ];
@@ -60,6 +61,12 @@ function EstadoBadge({ estado }: { estado: string }) {
       return (
         <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-medium text-amber-800">
           Pendiente
+        </span>
+      );
+    case "cuotas":
+      return (
+        <span className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-medium text-sky-800">
+          En cuotas
         </span>
       );
     case "pagada":

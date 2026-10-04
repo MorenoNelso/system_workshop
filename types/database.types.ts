@@ -407,7 +407,7 @@ export interface Database {
           total: number;
           moneda_id: string;
           tasa_aplicada: number | null;
-          estado_pago: "pendiente" | "pagada" | "anulada";
+          estado_pago: "pendiente" | "cuotas" | "pagada" | "anulada";
           fecha_emision: string;
           usuario_id: string | null;
         }>;
@@ -419,7 +419,7 @@ export interface Database {
           total: number;
           moneda_id: string;
           tasa_aplicada?: number | null;
-          estado_pago?: "pendiente" | "pagada" | "anulada";
+          estado_pago?: "pendiente" | "cuotas" | "pagada" | "anulada";
           fecha_emision?: string;
           usuario_id?: string | null;
         }>;
@@ -431,7 +431,7 @@ export interface Database {
           total?: number;
           moneda_id?: string;
           tasa_aplicada?: number | null;
-          estado_pago?: "pendiente" | "pagada" | "anulada";
+          estado_pago?: "pendiente" | "cuotas" | "pagada" | "anulada";
           fecha_emision?: string;
           usuario_id?: string | null;
         }>;
