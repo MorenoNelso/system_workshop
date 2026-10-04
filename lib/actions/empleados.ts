@@ -68,11 +68,20 @@ export async function listMecanicosActivos() {
   const supabase = await db();
   const { data, error } = await supabase
     .from("empleados")
-    .select("id, nombre, tipo_vinculacion, porcentaje_comision")
+    .select("id, nombre, tipo_vinculacion, porcentaje_comision, usuario:usuarios(rol)")
     .eq("activo", true)
     .order("nombre");
   if (error) return [];
-  return data;
+  // es_dueno: vinculado a un administrador. Su comisión no es costo
+  // (queda en el taller); el preview y getGanancias lo tratan así.
+  // Nota: con 1 solo admin (modelo del taller) es inequívoco.
+  return (data ?? []).map((m) => ({
+    id: m.id,
+    nombre: m.nombre,
+    tipo_vinculacion: m.tipo_vinculacion,
+    porcentaje_comision: m.porcentaje_comision,
+    es_dueno: (m.usuario as unknown as { rol?: string } | null)?.rol === "administrador",
+  }));
 }
 
 export async function createEmpleado(raw: unknown): Promise<ActionResult> {

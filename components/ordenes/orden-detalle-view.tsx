@@ -17,6 +17,8 @@ interface EmpleadoLite {
   id: string;
   nombre: string;
   porcentaje_comision: number | null;
+  /** Vinculado a un administrador: su comisión queda en el taller. */
+  es_dueno?: boolean;
 }
 
 interface RepuestoDisponible {
@@ -753,6 +755,7 @@ export function OrdenDetalleView({
                       {m.porcentaje_comision === null || m.porcentaje_comision === undefined
                         ? "(sin % configurado)"
                         : `(${m.porcentaje_comision}% com.)`}
+                      {m.es_dueno ? " — Dueño" : ""}
                     </option>
                   ))}
                 </select>
@@ -892,20 +895,31 @@ export function OrdenDetalleView({
                   {(() => {
                     const precio = Number(montoMO);
                     const ayuda = ayudanteMonto !== "" ? Number(ayudanteMonto) : 0;
+                    const ayudaLimpia = Number.isNaN(ayuda) ? 0 : ayuda;
                     const pago = modoPagoMO === "fijo"
                       ? (montoAPagarMO !== "" ? Number(montoAPagarMO) : null)
                       : (comisionMO !== "" ? (precio * Number(comisionMO)) / 100 : null);
                     if (pago === null || Number.isNaN(pago) || Number.isNaN(precio)) return null;
-                    const taller = precio - pago - (Number.isNaN(ayuda) ? 0 : ayuda);
+                    // La comisión del dueño NO es costo: queda en el taller
+                    // (igual que en getGanancias). Nunca da negativo por eso.
+                    const esDueno = mecanicos.find((m) => m.id === mecanicoId)?.es_dueno ?? false;
+                    const taller = esDueno ? precio - ayudaLimpia : precio - pago - ayudaLimpia;
                     return (
                       <>
                         Cliente paga <span className="font-bold">${precio.toFixed(2)}</span>
-                        {" · "}mecánico gana <span className="font-bold">${pago.toFixed(2)}</span>
+                        {esDueno ? (
+                          <>
+                            {" · "}dueño cobra <span className="font-bold">${pago.toFixed(2)}</span>
+                            <span className="ml-1 text-emerald-600">(queda en el taller)</span>
+                          </>
+                        ) : (
+                          <>{" · "}mecánico gana <span className="font-bold">${pago.toFixed(2)}</span></>
+                        )}
                         {ayudanteId && ayudanteMonto !== "" ? (
-                          <>{" · "}ayudante gana <span className="font-bold">${ayuda.toFixed(2)}</span></>
+                          <>{" · "}ayudante gana <span className="font-bold">${ayudaLimpia.toFixed(2)}</span></>
                         ) : null}
                         {" · "}al taller le quedan <span className="font-bold">${taller.toFixed(2)}</span>
-                        {pago === 0 ? (
+                        {pago === 0 && !esDueno ? (
                           <span className="ml-2 font-semibold text-amber-700">— ojo: comisión $0</span>
                         ) : null}
                       </>

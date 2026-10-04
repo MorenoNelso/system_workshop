@@ -60,6 +60,8 @@ export interface MiProduccion {
   totalComision: number;
   totalManoObra: number;
   cantidadServicios: number;
+  /** Servicios del mes donde fue ayudante (incluidos en lo anterior). */
+  cantidadAyudas: number;
 }
 
 export interface DeduccionMes {
@@ -279,6 +281,50 @@ export async function getIngresosPorMecanico(): Promise<{
     entry.cantidadServicios += 1;
   }
 
+  // Trabajos como ayudante: también son ganancia del que ayudó.
+  // Lectura plana (sin joins) + nombres por lote.
+  const { data: ayudas } = await supabase
+    .from("orden_detalle_mano_obra")
+    .select("ayudante_id, ayudante_monto, moneda_id")
+    .not("ayudante_id", "is", null);
+
+  const ayudaRows = (ayudas ?? []) as unknown as {
+    ayudante_id: string;
+    ayudante_monto: number | null;
+    moneda_id: string;
+  }[];
+  const ayudaIds = [...new Set(ayudaRows.map((a) => a.ayudante_id))];
+  const nombresAyud: Record<string, string> = {};
+  if (ayudaIds.length > 0) {
+    const { data: empsAyuda } = await supabase
+      .from("empleados")
+      .select("id, nombre")
+      .in("id", ayudaIds);
+    for (const e of empsAyuda ?? []) nombresAyud[e.id] = e.nombre;
+  }
+  for (const a of ayudaRows) {
+    const key = a.ayudante_id;
+    let entry = porMecanico.get(key);
+    if (!entry) {
+      entry = {
+        empleadoId: key,
+        nombre: nombresAyud[key] ?? "Desconocido",
+        totalComision: 0,
+        totalManoObra: 0,
+        cantidadServicios: 0,
+      };
+      porMecanico.set(key, entry);
+    }
+    const convAyuda = convertir(
+      Number(a.ayudante_monto ?? 0),
+      a.moneda_id,
+      monedaBase.id,
+      tasas,
+    );
+    if (convAyuda !== null) entry.totalComision += convAyuda;
+    entry.cantidadServicios += 1;
+  }
+
   return {
     mecanicos: [...porMecanico.values()].sort(
       (a, b) => b.totalManoObra - a.totalManoObra,
@@ -452,6 +498,35 @@ export async function getMiProduccion(
     cantidadServicios += 1;
   }
 
+  // ---- 2c. Trabajos como AYUDANTE del mes (el titular es otro mecánico) ----
+  // Sin esto, lo que gana ayudando es invisible en su propio dashboard
+  // (el admin sí lo veía en getResumenEmpleados). Mes por fecha_ingreso.
+  const { data: ayudas } = await supabase
+    .from("orden_detalle_mano_obra")
+    .select("ayudante_monto, moneda_id, orden:ordenes_servicio(fecha_ingreso)")
+    .eq("ayudante_id", empleado.id);
+
+  const ayudasRows = (ayudas ?? []) as unknown as {
+    ayudante_monto: number | null;
+    moneda_id: string;
+    orden: { fecha_ingreso: string } | null;
+  }[];
+
+  let cantidadAyudas = 0;
+  for (const a of ayudasRows) {
+    const fecha = a.orden?.fecha_ingreso ? String(a.orden.fecha_ingreso).slice(0, 10) : null;
+    if (fecha === null || fecha < inicioMes || fecha > finMes) continue;
+    const convAyuda = convertir(
+      Number(a.ayudante_monto ?? 0),
+      a.moneda_id,
+      monedaBase.id,
+      tasas,
+    );
+    if (convAyuda !== null) totalComision += convAyuda;
+    cantidadServicios += 1;
+    cantidadAyudas += 1;
+  }
+
   // ---- 3. Deducciones del mes para este empleado ----
   const { data: deducciones } = await supabase
     .from("deducciones_mecanico")
@@ -494,6 +569,7 @@ export async function getMiProduccion(
       totalComision,
       totalManoObra,
       cantidadServicios,
+      cantidadAyudas,
     },
     moneda: monedaBase,
     deducciones: {

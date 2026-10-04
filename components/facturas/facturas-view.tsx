@@ -33,6 +33,8 @@ interface MecanicoLite {
   id: string;
   nombre: string;
   porcentaje_comision: number | null;
+  /** Vinculado a un administrador: su comisión queda en el taller. */
+  es_dueno?: boolean;
 }
 
 interface Props {
@@ -1001,6 +1003,7 @@ export function FacturasView({
                               {m.porcentaje_comision === null || m.porcentaje_comision === undefined
                                 ? "(sin %)"
                                 : `(${m.porcentaje_comision}%)`}
+                              {m.es_dueno ? " — Dueño" : ""}
                             </option>
                           ))}
                         </select>
@@ -1049,6 +1052,9 @@ export function FacturasView({
                             {srvMonto !== "" && srvComision !== "" && (
                               <p className="mt-1 text-[11px] text-emerald-700">
                                 Gana ${((Number(srvMonto) * Number(srvComision)) / 100).toFixed(2)}
+                                {mecanicos.find((m) => m.id === srvMecanicoId)?.es_dueno
+                                  ? " (dueño: queda en el taller)"
+                                  : ""}
                                 {Number(srvComision) === 0 ? " — ojo: comisión $0" : ""}
                               </p>
                             )}

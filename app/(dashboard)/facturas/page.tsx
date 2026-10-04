@@ -63,7 +63,7 @@ export default async function FacturasPage() {
       tasas={tasas}
       clientes={clientes as { id: string; nombre: string; telefono: string }[]}
       repuestos={repuestosActivos}
-      mecanicos={mecanicos as { id: string; nombre: string; porcentaje_comision: number | null }[]}
+      mecanicos={mecanicos as { id: string; nombre: string; porcentaje_comision: number | null; es_dueno?: boolean }[]}
     />
   );
 }
